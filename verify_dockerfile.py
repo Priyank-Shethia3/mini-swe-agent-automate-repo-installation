@@ -511,8 +511,11 @@ def verify_dockerfile(dockerfile_path: Path, image_name: str = None, show_progre
             else:
                 print(f"\n   Running test: {test_command}")
 
-            # For npm test, use shell form to handle npm scripts properly
-            if test_command.startswith('npm'):
+            # For npm test or commands with shell operators, use shell form
+            shell_operators = ['||', '&&', ';', '|', '>', '<', '$(', '`']
+            needs_shell = test_command.startswith('npm') or any(op in test_command for op in shell_operators)
+            
+            if needs_shell:
                 docker_cmd = ["docker", "run", "--rm", image_name, "sh", "-c", test_command]
             else:
                 # Split the command for direct execution
@@ -602,6 +605,8 @@ def main():
     parser.add_argument("--image-name", help="Docker image name for testing (non-Python repos only)")
     parser.add_argument("--cleanup", action="store_true", help="Remove test image/environment after verification")
     parser.add_argument("--no-progress", action="store_true", help="Disable real-time progress output")
+    parser.add_argument("--allow-test-failures", action="store_true",
+                        help="Accept repositories where installation succeeds but tests fail (exit 0 if installation passed)")
 
     args = parser.parse_args()
 
@@ -685,12 +690,19 @@ def main():
             print(f"\n🎉 OVERALL RESULT: VERIFICATION PASSED")
             print(f"   Both installation and testing completed successfully!")
             sys.exit(0)
+        elif args.allow_test_failures and installation_success:
+            print(f"\n⚠️  OVERALL RESULT: PARTIAL SUCCESS (Installation Passed, Tests Failed)")
+            print(f"   Installation succeeded, but tests failed")
+            print(f"   Exiting with success code due to --allow-test-failures flag")
+            sys.exit(0)
         else:
             print(f"\n❌ OVERALL RESULT: VERIFICATION FAILED")
             if not installation_success:
                 print(f"   Installation/build failed")
             if not testing_success:
                 print(f"   Tests failed or did not run properly")
+                if not args.allow_test_failures:
+                    print(f"   💡 Tip: Use --allow-test-failures to accept repos with test failures")
             sys.exit(1)
 
     except KeyboardInterrupt:

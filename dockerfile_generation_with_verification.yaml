@@ -18,13 +18,13 @@ agent:
   instance_template: |
     Please create a Dockerfile for this GitHub repository: {{task}}
 
-    Your goal is to analyze the repository, determine how to install dependencies and run tests, then generate a complete Dockerfile.
+    Your goal is to analyze the repository, determine how to install dependencies and run tests, then generate a complete Dockerfile AND verify it works.
 
     ## Recommended Workflow
 
     1. Clone the repository using git clone under the agent-result/$repo_folder_name/cloned_repo directory (repo_folder_name = task.replace("/", "-"))
     2. Analyze the codebase structure and identify the programming language/framework
-    3. Look for package management files (package.json, requirements.txt, Cargo.toml, etc.)
+    3. Look for package management files (package.json, requirements.txt, Cargo.toml, pom.xml, etc.)
     4. Determine the appropriate base Docker image
     5. Figure out the installation and test commands
     6. Get the latest commit hash from the repository (required for metadata)
@@ -34,28 +34,43 @@ agent:
        - Dependency installation ONLY (NO test execution)
        - Proper working directory and entrypoint
        - **For Maven projects**: Use `-B` (batch mode) and `-q` (quiet) flags to reduce verbosity (e.g., `mvn clean install -B -q -DskipTests`)
+         - For multi-module Maven projects with problematic modules, you can use `-pl <module>` to build only specific modules (e.g., `mvn clean install -B -pl core -DskipTests -am`)
        - **For Gradle projects**: Use `--no-daemon` and `--console=plain` to reduce output
     8. Create a repo_metadata.json file in the agent-result/$repo_folder_name directory containing:
        - owner: Repository owner (e.g., "expressjs")
        - repo: Repository name (e.g., "express")
        - install_commands: List of installation commands used (e.g., ["npm install", "pip install -e .", "mvn clean install -B -DskipTests"])
        - test_commands: List of test commands in verbose mode (e.g., ["npm test -- --verbose", "pytest -v", "cargo test -- --nocapture", "mvn test -B"])
+         - Note: For Maven multi-module projects, ensure install_commands and test_commands use the same `-pl <module>` scope if specified
        - language: The programming language (e.g., "javascript", "python", "go", "rust", "java")
        - test_framework: The detected test framework (e.g., "jest", "mocha", "pytest", "go_test", "cargo", "maven", "gradle", "junit")
           - If unable to determine the test framework, set it to "unknown"
        - commit_hash: Latest commit hash from the repository
-    9. Remove the cloned repository directory to save space (e.g., `rm -rf agent-result/$repo_folder_name/cloned_repo`).
+    9. **VERIFY THE DOCKERFILE**: Run `python verify_dockerfile.py agent-result/$repo_folder_name/Dockerfile --cleanup` to test if the Dockerfile builds successfully and tests run properly
+    10. **IF VERIFICATION FAILS**: 
+        - Analyze the error output carefully
+        - Common issues:
+          * Base image not found
+          * Wrong package manager for the base OS
+          * Missing system dependencies
+          * Incorrect syntax
+          * Multi-module Maven projects with failing modules (consider using `-pl <module>` to build only working modules)
+        - Fix the Dockerfile and/or repo_metadata.json, then verify again
+        - Ensure both installation AND testing succeed before completing
+        - Repeat until verification passes for a maximum of 3 attempts. DON'T EXCEED 3 ATTEMPTS.
+    11. Once verification passes, remove the cloned repository directory to save space (e.g., `rm -rf agent-result/$repo_folder_name/cloned_repo`)
+    12. Finish your work by issuing: `echo COMPLETE_TASK_AND_SUBMIT_FINAL_OUTPUT`
 
     ## Important Guidelines
 
     - Use `git clone https://github.com/{{task}}.git` instead of COPY commands
-    - Choose minimal base images when possible (e.g., node:18-slim, python:3.11-slim), but make sure the version is supported by the repository
+    - Choose minimal base images when possible (e.g., node:18-slim, python:3.11-slim), but make sure the version is supported by the repository.
     - Install only necessary system dependencies
     - Create the Dockerfile in agent-result/$repo_folder_name directory
-    - Make sure the final container can be used for development or CI/CD
     - Dockerfile should ONLY install dependencies, NOT run tests
     - Test commands should be stored in metadata for separate execution in verbose mode
-    - Always specify verbose flags for test commands (--verbose, -v, --nocapture, etc.) to get detailed output
+    - Always specify verbose flags for test commands (--verbose, -v, -X, --nocapture, etc.)
+    - VERIFY your Dockerfile builds successfully before finishing
 
     ## Important Rules
 
@@ -63,7 +78,7 @@ agent:
     2. The action must be enclosed in triple backticks
     3. Directory or environment variable changes are not persistent. Every action is executed in a new subshell.
        However, you can prefix any action with `MY_ENV_VAR=MY_VALUE cd /path/to/working/dir && ...` or write/load environment variables from files
-    4. When you have created a working Dockerfile, finish your work by issuing: `echo COMPLETE_TASK_AND_SUBMIT_FINAL_OUTPUT`
+    4. When you have created AND VERIFIED a working Dockerfile, finish your work by issuing: `echo COMPLETE_TASK_AND_SUBMIT_FINAL_OUTPUT`
 
     <system_information>
     {{system}} {{release}} {{version}} {{machine}} {{processor}}
@@ -116,6 +131,19 @@ agent:
       "commit_hash": "70c3acf62950be5dfb28743c7a719bfdecebcd84"
     }
     EOF
+    ```
+
+    ### Verify Dockerfile builds successfully:
+
+    ```bash
+    python verify_dockerfile.py agent-result/expressjs-express/Dockerfile --cleanup
+    ```
+
+    ### Fix Dockerfile if verification fails:
+
+    ```bash
+    # Example: Replace deprecated openjdk with eclipse-temurin
+    sed -i 's/FROM openjdk:11-jdk-slim/FROM eclipse-temurin:11-jdk-slim/g' agent-result/classgraph-classgraph/Dockerfile
     ```
 
     ### Edit files with sed:
@@ -206,3 +234,4 @@ model:
   model_kwargs:
     temperature: 0.0
     drop_params: true
+

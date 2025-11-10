@@ -71,13 +71,82 @@ class GitHubScraper:
         response = self.session.get(f"{self.base_url}/rate_limit")
         return response.json()
     
+    def get_languages(self, full_name: str) -> Dict[str, int]:
+        """Get language statistics for a repository"""
+        url = f"{self.base_url}/repos/{full_name}/languages"
+        response = self.session.get(url)
+        
+        if response.status_code == 200:
+            return response.json()
+        return {}
+    
+    def has_native_code(self, full_name: str, threshold: float = 5.0) -> bool:
+        """
+        Check if repository has significant native C/C++ code
+        
+        Args:
+            full_name: Repository full name (owner/repo)
+            threshold: Percentage threshold for native code (default 5%)
+        
+        Returns:
+            True if C/C++ code exceeds threshold
+        """
+        languages = self.get_languages(full_name)
+        if not languages:
+            return False
+        
+        total_bytes = sum(languages.values())
+        if total_bytes == 0:
+            return False
+        
+        native_languages = ['C', 'C++', 'Objective-C', 'Objective-C++']
+        native_bytes = sum(languages.get(lang, 0) for lang in native_languages)
+        
+        native_percentage = (native_bytes / total_bytes) * 100
+        return native_percentage >= threshold
+    
+    def is_android_related(self, repo: RepoInfo) -> bool:
+        """
+        Check if repository is Android-related
+        
+        Args:
+            repo: RepoInfo object
+        
+        Returns:
+            True if repo appears to be Android-related
+        """
+        android_keywords = ['android']
+        
+        # Check name
+        name_lower = repo.name.lower()
+        if any(keyword in name_lower for keyword in android_keywords):
+            return True
+        
+        # Check description
+        if repo.description:
+            desc_lower = repo.description.lower()
+            if any(keyword in desc_lower for keyword in android_keywords):
+                return True
+        
+        # Check topics
+        topics_lower = [topic.lower() for topic in repo.topics]
+        if any(keyword in topics_lower for keyword in android_keywords):
+            return True
+        
+        return False
+    
     def search_repositories(
         self,
         language: str = "",
         min_stars: int = 0,
         max_stars: Optional[int] = None,
+        min_size: Optional[int] = None,
+        max_size: Optional[int] = None,
         created_after: Optional[str] = None,
         pushed_after: Optional[str] = None,
+        exclude_native_code: bool = False,
+        native_code_threshold: float = 5.0,
+        exclude_android: bool = False,
         sort: str = "stars",
         order: str = "desc",
         per_page: int = 100,
@@ -90,8 +159,13 @@ class GitHubScraper:
             language: Programming language filter
             min_stars: Minimum star count
             max_stars: Maximum star count (optional)
+            min_size: Minimum repository size in KB (optional)
+            max_size: Maximum repository size in KB (optional)
             created_after: Repositories created after this date (YYYY-MM-DD)
             pushed_after: Repositories pushed after this date (YYYY-MM-DD)
+            exclude_native_code: Filter out repos with significant C/C++ code
+            native_code_threshold: Percentage of C/C++ code to trigger exclusion (default 5%)
+            exclude_android: Filter out Android-related repositories
             sort: Sort by 'stars', 'forks', 'updated'
             order: 'asc' or 'desc'
             per_page: Results per page (max 100)
@@ -116,6 +190,15 @@ class GitHubScraper:
         elif max_stars:
             query_parts.append(f"stars:<={max_stars}")
         
+        # Add size filters to query
+        if min_size is not None:
+            if max_size is not None:
+                query_parts.append(f"size:{min_size}..{max_size}")
+            else:
+                query_parts.append(f"size:>={min_size}")
+        elif max_size is not None:
+            query_parts.append(f"size:<={max_size}")
+        
         if created_after:
             query_parts.append(f"created:>={created_after}")
         
@@ -125,6 +208,10 @@ class GitHubScraper:
         query = " ".join(query_parts)
         
         print(f"Searching with query: {query}")
+        if exclude_native_code:
+            print(f"Will filter out repos with >{native_code_threshold}% C/C++ code")
+        if exclude_android:
+            print(f"Will filter out Android-related repositories")
         
         for page in range(1, max_pages + 1):
             params = {
@@ -155,6 +242,20 @@ class GitHubScraper:
             
             for repo_data in data['items']:
                 repo = self._parse_repo_data(repo_data)
+                
+                # Filter by Android if requested
+                if exclude_android:
+                    if self.is_android_related(repo):
+                        print(f"  Skipping {repo.full_name} (Android-related)")
+                        continue
+                
+                # Filter by native code if requested
+                if exclude_native_code:
+                    if self.has_native_code(repo.full_name, native_code_threshold):
+                        print(f"  Skipping {repo.full_name} (has native code)")
+                        continue
+                    time.sleep(0.5)  # Extra rate limit protection for language API
+                
                 repos.append(repo)
             
             # Respect rate limits
@@ -239,8 +340,16 @@ def main():
     parser.add_argument('--language', '-l', help='Programming language filter')
     parser.add_argument('--min-stars', '-s', type=int, default=0, help='Minimum star count')
     parser.add_argument('--max-stars', type=int, help='Maximum star count')
+    parser.add_argument('--min-size', type=int, help='Minimum repository size in KB')
+    parser.add_argument('--max-size', type=int, help='Maximum repository size in KB')
     parser.add_argument('--created-after', help='Repositories created after (YYYY-MM-DD)')
     parser.add_argument('--pushed-after', help='Repositories pushed after (YYYY-MM-DD)')
+    parser.add_argument('--exclude-native-code', action='store_true', 
+                        help='Filter out repositories with significant C/C++ code')
+    parser.add_argument('--native-code-threshold', type=float, default=5.0,
+                        help='Percentage threshold for native code filtering (default: 5.0%%)')
+    parser.add_argument('--exclude-android', action='store_true',
+                        help='Filter out Android-related repositories')
     parser.add_argument('--sort', choices=['stars', 'forks', 'updated'], default='stars', help='Sort criteria')
     parser.add_argument('--order', choices=['asc', 'desc'], default='desc', help='Sort order')
     parser.add_argument('--max-pages', '-p', type=int, default=10, help='Maximum pages to fetch')
@@ -268,8 +377,13 @@ def main():
         language=args.language,
         min_stars=args.min_stars,
         max_stars=args.max_stars,
+        min_size=args.min_size,
+        max_size=args.max_size,
         created_after=args.created_after,
         pushed_after=args.pushed_after,
+        exclude_native_code=args.exclude_native_code,
+        native_code_threshold=args.native_code_threshold,
+        exclude_android=args.exclude_android,
         sort=args.sort,
         order=args.order,
         max_pages=args.max_pages
@@ -300,6 +414,9 @@ def main():
         
         stars = [r.stars for r in repos]
         print(f"Star range: {min(stars)} - {max(stars)}")
+        
+        sizes = [r.size for r in repos]
+        print(f"Size range: {min(sizes)} KB - {max(sizes)} KB (avg: {sum(sizes)//len(sizes)} KB)")
 
 
 if __name__ == "__main__":

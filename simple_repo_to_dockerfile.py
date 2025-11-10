@@ -15,6 +15,8 @@ import subprocess
 import argparse
 import json
 import re
+import signal
+import threading
 from pathlib import Path
 from dataclasses import asdict, dataclass, field
 from typing import Any, Optional, Dict
@@ -146,6 +148,23 @@ def main():
         action="store_true",
         help="Enable real-time display of agent-environment interactions",
     )
+    parser.add_argument(
+        "--verify",
+        action="store_true",
+        help="Instruct the agent to verify the generated Dockerfile by building it. The agent will automatically fix issues and retry if verification fails.",
+    )
+    parser.add_argument(
+        "--max-cost",
+        type=float,
+        default=2.0,
+        help="Maximum cost in dollars for agent execution (default: 2.0)"
+    )
+    parser.add_argument(
+        "--max-time",
+        type=int,
+        default=1200,
+        help="Maximum time in seconds for agent execution (default: 1200 = 20 minutes)"
+    )
     args = parser.parse_args()
 
     repo_name = args.repo_name
@@ -171,9 +190,14 @@ def main():
         config_filename = "conda_installation_generation.yaml"
         output_type = "conda installation script"
     else:
-        print(f"🚀 Generating Dockerfile for {repo_name} using model '{MODEL_NAME}'...")
-        config_filename = "dockerfile_generation.yaml"
-        output_type = "Dockerfile"
+        if args.verify:
+            print(f"🚀 Generating and verifying Dockerfile for {repo_name} using model '{MODEL_NAME}'...")
+            config_filename = "dockerfile_generation_with_verification.yaml"
+            output_type = "Dockerfile (with verification)"
+        else:
+            print(f"🚀 Generating Dockerfile for {repo_name} using model '{MODEL_NAME}'...")
+            config_filename = "dockerfile_generation.yaml"
+            output_type = "Dockerfile"
 
     # Create repo-specific directory in agent-result/ under current working directory
     base_result_dir = Path("agent-result")
@@ -202,6 +226,9 @@ def main():
         sys.exit(1)
 
     config_data = yaml.safe_load(config_path.read_text())["agent"]
+    
+    # Override cost_limit with CLI argument
+    config_data['cost_limit'] = args.max_cost
 
     # Create agent based on livestream preference
     if not args.no_livestream:
@@ -225,13 +252,55 @@ def main():
     try:
         # Run the agent - it will handle everything including output creation
         print(f"🤖 Starting agent to analyze {repo_name}...")
+        print(f"💰 Cost limit: ${args.max_cost:.2f}")
+        print(f"⏱️  Time limit: {args.max_time} seconds ({args.max_time // 60} minutes)")
 
-        exit_status, result = agent.run(task=repo_name)
+        # Set up timeout using threading
+        timeout_occurred = False
+        result_container = {}
+        
+        def run_agent_with_timeout():
+            try:
+                result_container['exit_status'], result_container['result'] = agent.run(task=repo_name)
+            except Exception as e:
+                result_container['error'] = e
+        
+        agent_thread = threading.Thread(target=run_agent_with_timeout)
+        agent_thread.daemon = True
+        agent_thread.start()
+        agent_thread.join(timeout=args.max_time)
+        
+        if agent_thread.is_alive():
+            # Timeout occurred
+            timeout_occurred = True
+            print(f"⏰ Agent execution exceeded time limit of {args.max_time} seconds!")
+            exit_status = "TIMEOUT"
+            result = f"Agent execution timed out after {args.max_time} seconds"
+        elif 'error' in result_container:
+            raise result_container['error']
+        else:
+            exit_status = result_container.get('exit_status', 'ERROR')
+            result = result_container.get('result', 'Unknown error')
 
         # Save trajectory
         trajectory_path = repo_result_dir / "trajectory.json"
         print(f"💾 Saving agent trajectory to: {trajectory_path}")
+        
+        if timeout_occurred:
+            # Save partial trajectory with timeout status
+            print(f"⚠️  Saving partial trajectory due to timeout")
+        
         save_traj(agent, trajectory_path, exit_status=exit_status, result=result)
+        
+        # Report final costs
+        if hasattr(agent.model, 'cost'):
+            print(f"💵 Total cost: ${agent.model.cost:.4f}")
+        if hasattr(agent.model, 'n_calls'):
+            print(f"📞 Total API calls: {agent.model.n_calls}")
+        
+        if timeout_occurred:
+            print(f"❌ Agent timed out - Dockerfile generation incomplete")
+            sys.exit(1)
 
         if is_python_repo:
             # Check for conda installation script
@@ -323,6 +392,10 @@ def main():
                         print("❌ Could not extract metadata from Dockerfile")
 
                 print("🎉 Dockerfile generation completed successfully!")
+                
+                if args.verify:
+                    print("\n💡 Note: The agent was instructed to verify the Dockerfile.")
+                    print("   Check the trajectory above to see if verification passed.")
             else:
                 print("❌ No Dockerfile was created. Check the agent output above.")
                 print(f"Exit status: {exit_status}, Result: {result}")

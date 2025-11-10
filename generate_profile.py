@@ -573,7 +573,7 @@ WORKDIR /testbed
 
 
 def run_pipeline(repo_name: str, is_python_repo: bool, model_name: str = "claude-sonnet-4-20250514",
-                 livestream: bool = False) -> Dict[str, Any]:
+                 livestream: bool = False, verify: bool = False, max_cost: float = 2.0, max_time: int = 1200) -> Dict[str, Any]:
     """Run the complete 3-stage pipeline with full output capture."""
     owner, repo = validate_repo_name(repo_name)
     result_dir = Path("agent-result") / f"{owner}-{repo}"
@@ -603,10 +603,14 @@ def run_pipeline(repo_name: str, is_python_repo: bool, model_name: str = "claude
         # Stage 1: Generate Dockerfile/conda script + metadata
         stage1_cmd = [
             "python", "simple_repo_to_dockerfile.py", repo_name,
-            "--model_name", model_name
+            "--model_name", model_name,
+            "--max-cost", str(max_cost),
+            "--max-time", str(max_time)
         ]
         if is_python_repo:
             stage1_cmd.append("--python-repo")
+        if verify:
+            stage1_cmd.append("--verify")
 
         exit_code, output = run_pipeline_command(
             stage1_cmd,
@@ -832,6 +836,23 @@ def main():
         action="store_true",
         help="Enable livestream output for pipeline stages (default: False)"
     )
+    parser.add_argument(
+        "--verify",
+        action="store_true",
+        help="Instruct the agent to verify the generated Dockerfile by building it (passed to simple_repo_to_dockerfile.py)"
+    )
+    parser.add_argument(
+        "--max-cost",
+        type=float,
+        default=2.0,
+        help="Maximum cost in dollars for agent execution in Stage 1 (default: 2.0)"
+    )
+    parser.add_argument(
+        "--max-time",
+        type=int,
+        default=1200,
+        help="Maximum time in seconds for agent execution in Stage 1 (default: 1200 = 20 minutes)"
+    )
 
     args = parser.parse_args()
 
@@ -840,7 +861,8 @@ def main():
         owner, repo = validate_repo_name(args.repo_name)
 
         # Run the complete pipeline
-        pipeline_results = run_pipeline(args.repo_name, args.python_repo, args.model, args.livestream)
+        pipeline_results = run_pipeline(args.repo_name, args.python_repo, args.model, args.livestream, args.verify, 
+                                       args.max_cost, args.max_time)
 
         # Generate profile
         profile_code = generate_profile_from_pipeline(pipeline_results, args.python_repo)

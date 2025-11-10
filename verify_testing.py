@@ -23,6 +23,8 @@ from log_parser.parsers.pytest import parse_log_pytest
 from log_parser.parsers.go_test import parse_log_go_test
 from log_parser.parsers.cargo import parse_log_cargo
 from log_parser.parsers.maven import parse_log_maven
+from log_parser.parsers.gradle import parse_log_gradle
+from log_parser.parsers.junit import parse_log_junit
 
 
 # Parser registry
@@ -33,6 +35,8 @@ PARSERS = {
     'go_test': parse_log_go_test,
     'cargo': parse_log_cargo,
     'maven': parse_log_maven,
+    'gradle': parse_log_gradle,
+    'junit': parse_log_junit,
 }
 
 # Language to framework mappings
@@ -41,7 +45,7 @@ LANGUAGE_FRAMEWORKS = {
     'python': ['pytest'],
     'go': ['go_test'],
     'rust': ['cargo'],
-    'java': ['maven'],
+    'java': ['gradle', 'maven', 'junit'],
 }
 
 

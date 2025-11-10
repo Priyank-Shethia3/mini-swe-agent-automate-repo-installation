@@ -3,3 +3,8 @@ __pycache__/
 .claude
 CLAUDE.md
 agent-result/
+agent-result_arch/
+github_repo_scraper/*.json
+.env
+*.out
+*.png
