@@ -229,6 +229,27 @@ def main():
     
     # Override cost_limit with CLI argument
     config_data['cost_limit'] = args.max_cost
+    
+    # Inject script directory into templates for agent to use
+    script_dir = str(Path(__file__).parent.resolve())
+    if 'instance_template' in config_data:
+        # Add script directory information to the beginning of the prompt
+        config_data['instance_template'] = f"""
+## Helper Scripts Available
+
+The following helper scripts are available in this directory:
+- Verification script: `{script_dir}/verify_dockerfile.py`
+- Testing verification: `{script_dir}/verify_testing.py`
+
+Use the full paths shown above when calling these scripts.
+
+""" + config_data['instance_template']
+        
+        # Also replace any hardcoded references
+        config_data['instance_template'] = config_data['instance_template'].replace(
+            'python verify_dockerfile.py',
+            f'python {script_dir}/verify_dockerfile.py'
+        )
 
     # Create agent based on livestream preference
     if not args.no_livestream:

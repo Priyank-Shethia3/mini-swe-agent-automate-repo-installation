@@ -519,6 +519,21 @@ def generate_generic_profile_class(owner: str, repo: str, metadata: Dict[str, An
         'c': 'gcc:latest',
         'cpp': 'gcc:latest',
     }.get(language, 'ubuntu:22.04')
+    
+    # Determine the appropriate base class based on language
+    base_class_mapping = {
+        'java': 'JavaProfile',
+        'go': 'GolangProfile',
+        'golang': 'GolangProfile',
+        'rust': 'RustProfile',
+        'c': 'CProfile',
+        'cpp': 'CppProfile',
+        'c++': 'CppProfile',
+        'csharp': 'CSharpProfile',
+        'c#': 'CSharpProfile',
+        'php': 'PhpProfile',
+    }
+    base_class = base_class_mapping.get(language, 'RepoProfile')
 
     # Header comment with metadata
     header_comment = f"""# Auto-generated profile for {owner}/{repo} ({language})
@@ -528,15 +543,28 @@ def generate_generic_profile_class(owner: str, repo: str, metadata: Dict[str, An
 """
 
     # Generate appropriate log parser based on detected framework
+    # Note: Parser functions should be imported at the top of the profile file
     if parser_name == 'go_test':
         log_parser_code = '''def log_parser(self, log: str) -> dict[str, str]:
-        return parse_log_go_test(log)'''
+        """Parse Go test output."""
+        # Note: parse_log_go_test should be imported at top of file
+        if parse_log_go_test is not None:
+            return parse_log_go_test(log)
+        return {}'''
     elif parser_name == 'cargo':
         log_parser_code = '''def log_parser(self, log: str) -> dict[str, str]:
-        return parse_log_cargo(log)'''
+        """Parse Cargo test output."""
+        # Note: parse_log_cargo should be imported at top of file
+        if parse_log_cargo is not None:
+            return parse_log_cargo(log)
+        return {}'''
     elif parser_name == 'maven':
         log_parser_code = '''def log_parser(self, log: str) -> dict[str, str]:
-        return parse_log_maven(log)'''
+        """Parse Maven Surefire test output."""
+        # Note: parse_log_maven should be imported at top of file
+        if parse_log_maven is not None:
+            return parse_log_maven(log)
+        return {}'''
     else:
         log_parser_code = '''def log_parser(self, log: str) -> dict[str, str]:
         # Generic parser - customize based on your test framework
@@ -550,7 +578,7 @@ def generate_generic_profile_class(owner: str, repo: str, metadata: Dict[str, An
 
     profile_code = f'''{header_comment}
 @dataclass
-class {class_name}(RepoProfile):
+class {class_name}({base_class}):
     owner: str = "{owner}"
     repo: str = "{repo}"
     commit: str = "{commit}"
@@ -578,6 +606,9 @@ def run_pipeline(repo_name: str, is_python_repo: bool, model_name: str = "claude
     owner, repo = validate_repo_name(repo_name)
     result_dir = Path("agent-result") / f"{owner}-{repo}"
 
+    # Get the directory where this script is located
+    script_dir = Path(__file__).parent.resolve()
+
     pipeline_results = {
         'owner': owner,
         'repo': repo,
@@ -602,7 +633,7 @@ def run_pipeline(repo_name: str, is_python_repo: bool, model_name: str = "claude
 
         # Stage 1: Generate Dockerfile/conda script + metadata
         stage1_cmd = [
-            "python", "simple_repo_to_dockerfile.py", repo_name,
+            "python", str(script_dir / "simple_repo_to_dockerfile.py"), repo_name,
             "--model_name", model_name,
             "--max-cost", str(max_cost),
             "--max-time", str(max_time)
@@ -627,7 +658,7 @@ def run_pipeline(repo_name: str, is_python_repo: bool, model_name: str = "claude
         print(f"✅ Stage 1 completed successfully")
 
         # Stage 2: Verify and run tests
-        stage2_cmd = ["python", "verify_dockerfile.py", str(result_dir)]
+        stage2_cmd = ["python", str(script_dir / "verify_dockerfile.py"), str(result_dir)]
         if is_python_repo:
             stage2_cmd.append("--python-repo")
         stage2_cmd.append("--cleanup")
@@ -648,7 +679,7 @@ def run_pipeline(repo_name: str, is_python_repo: bool, model_name: str = "claude
             print(f"✅ Stage 2 completed successfully")
 
         # Stage 3: Parse test output
-        stage3_cmd = ["python", "verify_testing.py", str(result_dir)]
+        stage3_cmd = ["python", str(script_dir / "verify_testing.py"), str(result_dir)]
         if is_python_repo:
             stage3_cmd.append("--python-repo")
 
