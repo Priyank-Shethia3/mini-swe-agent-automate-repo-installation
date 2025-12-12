@@ -392,6 +392,85 @@ def get_parser_function_call(parser_name: str) -> str:
     return parser_functions.get(parser_name, 'return {}  # Unknown parser')
 
 
+def _template_dockerfile(dockerfile_content: str) -> str:
+    """Convert agent's Dockerfile to use template variables."""
+    dockerfile = dockerfile_content
+    
+    # Replace actual owner/repo with template variables
+    dockerfile = re.sub(r'https://github\.com/[^/]+/[^/\s]+\.git',
+                       'https://github.com/{self.owner}/{self.repo}.git',
+                       dockerfile)
+    dockerfile = re.sub(r'git clone https://github\.com/[^/]+/[^\s]+',
+                       'git clone https://github.com/{self.owner}/{self.repo}.git',
+                       dockerfile)
+    
+    # Replace WORKDIR /app with WORKDIR /testbed (SWE-smith convention)
+    dockerfile = re.sub(r'WORKDIR /app\b', 'WORKDIR /testbed', dockerfile)
+    
+    # Replace paths like /app/ with /testbed/
+    dockerfile = dockerfile.replace('/app/', '/testbed/')
+    
+    # Replace paths like RUN git clone ... /app
+    dockerfile = re.sub(r'(git clone [^\s]+ )/app\b', r'\1/testbed', dockerfile)
+    
+    # CRITICAL FIX for Modal compatibility:
+    # Modal's legacy image builder skips WORKDIR, so we need to ensure
+    # git clone CREATES /testbed explicitly, then WORKDIR sets it.
+    # Change: "RUN git clone ... ." to "RUN git clone ... /testbed"
+    # This must happen AFTER git is installed but BEFORE other commands
+    
+    # Pattern: Find "git clone ... ." and replace . with /testbed
+    dockerfile = re.sub(
+        r'(RUN git clone [^\n]+) \.',
+        r'\1 /testbed',
+        dockerfile
+    )
+    
+    # CRITICAL FIX 2: Remove WORKDIR /testbed if it appears BEFORE git clone
+    # because it creates an empty directory that git clone can't use
+    # Pattern: Remove "WORKDIR /testbed" lines that appear before "RUN git clone"
+    lines = dockerfile.split('\n')
+    result_lines = []
+    skip_workdir = False
+    
+    for i, line in enumerate(lines):
+        # Check if this is a WORKDIR /testbed line
+        if re.match(r'^\s*WORKDIR /testbed\s*$', line):
+            # Look ahead to see if git clone comes after
+            has_git_clone_after = False
+            for j in range(i + 1, len(lines)):
+                if 'git clone' in lines[j] and '/testbed' in lines[j]:
+                    has_git_clone_after = True
+                    break
+                # Stop looking if we hit another significant command
+                if lines[j].strip().startswith('RUN') and 'git clone' not in lines[j]:
+                    break
+            
+            if has_git_clone_after:
+                # Skip this WORKDIR line, we'll add it after git clone
+                continue
+        
+        result_lines.append(line)
+    
+    # Now add WORKDIR /testbed after the git clone line if it's not already there
+    final_lines = []
+    for i, line in enumerate(result_lines):
+        final_lines.append(line)
+        # If this is the git clone line, add WORKDIR after it
+        if 'git clone' in line and '/testbed' in line:
+            # Check if next non-empty line is already WORKDIR
+            next_is_workdir = False
+            for j in range(i + 1, len(result_lines)):
+                if result_lines[j].strip():
+                    if 'WORKDIR /testbed' in result_lines[j]:
+                        next_is_workdir = True
+                    break
+            if not next_is_workdir:
+                final_lines.append('WORKDIR /testbed')
+    
+    return '\n'.join(final_lines)
+
+
 def generate_python_profile_class(owner: str, repo: str, metadata: Dict[str, Any],
                                  parsed_results: Optional[Dict[str, Any]],
                                  install_script: Optional[str]) -> str:
@@ -432,27 +511,17 @@ def generate_javascript_profile_class(owner: str, repo: str, metadata: Dict[str,
                                     parsed_results: Optional[Dict[str, Any]],
                                     dockerfile_content: Optional[str]) -> str:
     """Generate SWE-smith compatible JavaScript profile class code."""
+    if not dockerfile_content:
+        raise ValueError(f"No Dockerfile found for {owner}/{repo}. Agent must generate Dockerfile first.")
+    
     class_name = create_class_name(owner, repo, metadata.get('commit_hash', ''))
     commit = metadata.get('commit_hash', 'unknown')
     test_commands = metadata.get('test_commands', ['npm test'])
     test_cmd = test_commands[0] if test_commands else 'npm test'
 
-    # Determine parser information
     parser_name = parsed_results.get('parser', 'mocha') if parsed_results else 'mocha'
+    dockerfile_template = _template_dockerfile(dockerfile_content)
 
-    # Format dockerfile content for SWE-smith style
-    if dockerfile_content:
-        # Clean up dockerfile content for proper formatting
-        dockerfile_lines = dockerfile_content.strip().split('\n')
-        dockerfile_str = '\n'.join(dockerfile_lines)
-    else:
-        dockerfile_str = f'''FROM node:18-slim
-RUN apt-get update && apt-get install -y git && rm -rf /var/lib/apt/lists/*
-RUN git clone https://github.com/{owner}/{repo}.git /testbed
-WORKDIR /testbed
-RUN npm install'''
-
-    # Header comment with metadata
     header_comment = f"""# Auto-generated profile for {owner}/{repo}
 # Commit: {commit}
 # Generated: {datetime.now().isoformat()}
@@ -483,12 +552,7 @@ class {class_name}(JavaScriptProfile):
 
     @property
     def dockerfile(self):
-        return f"""FROM node:18-slim
-RUN apt-get update && apt-get install -y git
-RUN git clone https://github.com/{{self.mirror_name}} /testbed
-WORKDIR /testbed
-RUN npm install
-"""
+        return f"""{dockerfile_template}"""
 
     {log_parser_code}
 
@@ -502,23 +566,25 @@ def generate_generic_profile_class(owner: str, repo: str, metadata: Dict[str, An
                                  parsed_results: Optional[Dict[str, Any]],
                                  dockerfile_content: Optional[str]) -> str:
     """Generate SWE-smith compatible generic profile class code for non-JS/non-Python repos."""
+    if not dockerfile_content:
+        raise ValueError(f"No Dockerfile found for {owner}/{repo}. Agent must generate Dockerfile first.")
+    
     class_name = create_class_name(owner, repo, metadata.get('commit_hash', ''))
     commit = metadata.get('commit_hash', 'unknown')
     language = metadata.get('language', 'unknown').lower()
     test_commands = metadata.get('test_commands', ['make test'])
     test_cmd = test_commands[0] if test_commands else 'make test'
 
-    # Determine parser information
-    parser_name = parsed_results.get('parser', 'unknown') if parsed_results else 'unknown'
-
-    # Generate base image selection
-    base_image = {
-        'go': 'golang:1.21',
-        'rust': 'rust:latest',
-        'java': 'openjdk:17',
-        'c': 'gcc:latest',
-        'cpp': 'gcc:latest',
-    }.get(language, 'ubuntu:22.04')
+    # Detect Maven from test commands
+    is_maven = any('mvn' in cmd for cmd in test_commands)
+    
+    # Use Maven parser if Maven detected, otherwise use parsed_results or default
+    if is_maven:
+        parser_name = 'maven'
+    else:
+        parser_name = parsed_results.get('parser', 'unknown') if parsed_results else 'unknown'
+    
+    dockerfile_template = _template_dockerfile(dockerfile_content)
     
     # Determine the appropriate base class based on language
     base_class_mapping = {
@@ -535,7 +601,6 @@ def generate_generic_profile_class(owner: str, repo: str, metadata: Dict[str, An
     }
     base_class = base_class_mapping.get(language, 'RepoProfile')
 
-    # Header comment with metadata
     header_comment = f"""# Auto-generated profile for {owner}/{repo} ({language})
 # Commit: {commit}
 # Generated: {datetime.now().isoformat()}
@@ -543,7 +608,6 @@ def generate_generic_profile_class(owner: str, repo: str, metadata: Dict[str, An
 """
 
     # Generate appropriate log parser based on detected framework
-    # Note: Parser functions should be imported at the top of the profile file
     if parser_name == 'go_test':
         log_parser_code = '''def log_parser(self, log: str) -> dict[str, str]:
         """Parse Go test output."""
@@ -560,11 +624,34 @@ def generate_generic_profile_class(owner: str, repo: str, metadata: Dict[str, An
         return {}'''
     elif parser_name == 'maven':
         log_parser_code = '''def log_parser(self, log: str) -> dict[str, str]:
-        """Parse Maven Surefire test output."""
-        # Note: parse_log_maven should be imported at top of file
-        if parse_log_maven is not None:
-            return parse_log_maven(log)
-        return {}'''
+        """Parse Maven Surefire text output with per-method granularity.
+        
+        Parses individual test methods from Maven Surefire output when using:
+        mvn test -B -T 1C -Dsurefire.useFile=false -Dsurefire.printSummary=true -Dsurefire.reportFormat=plain
+        """
+        import re
+        from swebench.harness.constants import TestStatus
+        
+        test_status_map = {}
+        # Pattern matches: [INFO] testMethodName -- Time elapsed: 0.001 s
+        # or: [ERROR] testMethodName -- Time elapsed: 0.001 s <<< FAILURE!
+        pattern = r"^\\[(INFO|ERROR)\\]\\s+(.*?)\\s+--\\s+Time elapsed:\\s+([\\d.]+)\\s"
+        
+        for line in log.split("\\n"):
+            if line.endswith("<<< FAILURE!") and line.startswith("[ERROR]"):
+                test_name = re.match(pattern, line)
+                if test_name is None:
+                    continue
+                test_status_map[test_name.group(2)] = TestStatus.FAILED.value
+            elif (
+                any([line.startswith(s) for s in ["[INFO]", "[ERROR]"]])
+                and "Time elapsed:" in line
+            ):
+                test_name = re.match(pattern, line)
+                if test_name is None:
+                    continue
+                test_status_map[test_name.group(2)] = TestStatus.PASSED.value
+        return test_status_map'''
     else:
         log_parser_code = '''def log_parser(self, log: str) -> dict[str, str]:
         # Generic parser - customize based on your test framework
@@ -586,11 +673,7 @@ class {class_name}({base_class}):
 
     @property
     def dockerfile(self):
-        return f"""FROM {base_image}
-RUN apt-get update && apt-get install -y git
-RUN git clone https://github.com/{{self.mirror_name}} /testbed
-WORKDIR /testbed
-"""
+        return f"""{dockerfile_template}"""
 
     {log_parser_code}
 

@@ -135,73 +135,106 @@ class {class_name}(PythonProfile):
     return profile_code
 
 
-def generate_java_profile_class(owner: str, repo: str, metadata: Dict[str, Any],
-                               parsed_results: Optional[Dict[str, Any]],
-                               dockerfile_content: Optional[str]) -> str:
-    """Generate SWE-smith compatible Java profile class code."""
-    class_name = create_class_name(owner, repo, metadata.get('commit_hash', ''))
-    commit = metadata.get('commit_hash', 'unknown')
-    test_commands = metadata.get('test_commands', ['./gradlew test'])
+def _template_dockerfile(dockerfile_content: str) -> str:
+    """Convert agent's Dockerfile to use template variables."""
+    dockerfile = dockerfile_content
     
-    parser_name = parsed_results.get('parser', 'gradle') if parsed_results else 'gradle'
+    # Replace actual owner/repo with template variables
+    dockerfile = re.sub(r'https://github\.com/[^/]+/[^/\s]+\.git',
+                       'https://github.com/{self.owner}/{self.repo}.git',
+                       dockerfile)
+    dockerfile = re.sub(r'git clone https://github\.com/[^/]+/[^\s]+',
+                       'git clone https://github.com/{self.owner}/{self.repo}.git',
+                       dockerfile)
     
-    # Determine if this is Gradle or Maven
-    is_gradle = any('gradlew' in cmd for cmd in test_commands)
-    is_maven = any('mvn' in cmd for cmd in test_commands)
+    # Replace WORKDIR /app with WORKDIR /testbed (SWE-smith convention)
+    dockerfile = re.sub(r'WORKDIR /app\b', 'WORKDIR /testbed', dockerfile)
     
-    # For Gradle/Maven, we need to combine test execution + XML extraction
-    # The log parser expects XML content in the output
-    # CRITICAL: Use `;` not `&&` so XML extraction runs even if tests fail
-    if len(test_commands) > 1:
-        # Combine all commands (typically: run tests + extract XML)
-        # Clean up first command (remove || true)
-        first_cmd = test_commands[0]
-        if ' || true' in first_cmd:
-            first_cmd = first_cmd.split(' || true')[0].strip()
+    # Replace paths like /app/ with /testbed/
+    dockerfile = dockerfile.replace('/app/', '/testbed/')
+    
+    # Replace paths like RUN git clone ... /app
+    dockerfile = re.sub(r'(git clone [^\s]+ )/app\b', r'\1/testbed', dockerfile)
+    
+    # CRITICAL FIX for Modal compatibility:
+    # Modal's legacy image builder skips WORKDIR, so we need to ensure
+    # git clone CREATES /testbed explicitly, then WORKDIR sets it.
+    # Change: "RUN git clone ... ." to "RUN git clone ... /testbed"
+    # This must happen AFTER git is installed but BEFORE other commands
+    
+    # Pattern: Find "git clone ... ." and replace . with /testbed
+    dockerfile = re.sub(
+        r'(RUN git clone [^\n]+) \.',
+        r'\1 /testbed',
+        dockerfile
+    )
+    
+    # CRITICAL FIX 2: Remove WORKDIR /testbed if it appears BEFORE git clone
+    # because it creates an empty directory that git clone can't use
+    # Pattern: Remove "WORKDIR /testbed" lines that appear before "RUN git clone"
+    lines = dockerfile.split('\n')
+    result_lines = []
+    skip_workdir = False
+    
+    for i, line in enumerate(lines):
+        # Check if this is a WORKDIR /testbed line
+        if re.match(r'^\s*WORKDIR /testbed\s*$', line):
+            # Look ahead to see if git clone comes after
+            has_git_clone_after = False
+            for j in range(i + 1, len(lines)):
+                if 'git clone' in lines[j] and '/testbed' in lines[j]:
+                    has_git_clone_after = True
+                    break
+                # Stop looking if we hit another significant command
+                if lines[j].strip().startswith('RUN') and 'git clone' not in lines[j]:
+                    break
+            
+            if has_git_clone_after:
+                # Skip this WORKDIR line, we'll add it after git clone
+                continue
         
-        # Add flags for better test execution
-        if is_gradle and '--continue' not in first_cmd:
-            first_cmd = first_cmd.replace('test', 'test --continue')
-        
-        # Combine with XML extraction using `;` not `&&`
-        # Escape the semicolon in -exec: `\;` instead of `;`
-        remaining_cmds = test_commands[1:]
-        xml_extraction = remaining_cmds[0] if remaining_cmds else ''
-        
-        # Fix the find command: escape semicolon and escape quotes around glob
-        if 'find' in xml_extraction and '-exec cat {}' in xml_extraction:
-            xml_extraction = xml_extraction.replace('-exec cat {} ;', '-exec cat {} \\\\;')
-            # Use escaped quotes so they don't break the Python string
-            xml_extraction = xml_extraction.replace('TEST-*.xml', '\\"TEST-*.xml\\"')
-        
-        # Use `;` to ensure XML extraction always runs
-        combined_cmd = f"{first_cmd} || true; {xml_extraction}"
-        test_cmd = f"/bin/bash -c '{combined_cmd}'"
-    else:
-        test_cmd = test_commands[0] if test_commands else './gradlew test'
-        # Clean up and add flags
-        if ' || true' in test_cmd:
-            test_cmd = test_cmd.split(' || true')[0].strip()
-        if is_gradle and '--continue' not in test_cmd:
-            test_cmd = test_cmd.replace('test', 'test --continue')
+        result_lines.append(line)
+    
+    # Now add WORKDIR /testbed after the git clone line if it's not already there
+    # Also add git checkout {self.commit} after WORKDIR
+    final_lines = []
+    for i, line in enumerate(result_lines):
+        final_lines.append(line)
+        # If this is the git clone line, add WORKDIR after it
+        if 'git clone' in line and '/testbed' in line:
+            # Check if next non-empty line is already WORKDIR
+            next_is_workdir = False
+            for j in range(i + 1, len(result_lines)):
+                if result_lines[j].strip():
+                    if 'WORKDIR /testbed' in result_lines[j]:
+                        next_is_workdir = True
+                    break
+            if not next_is_workdir:
+                final_lines.append('WORKDIR /testbed')
+                final_lines.append('RUN git checkout {self.commit}')
+        # If this is a WORKDIR /testbed line that comes after git clone, add git checkout after it
+        elif 'WORKDIR /testbed' in line:
+            # Check if this WORKDIR comes after a git clone
+            has_git_clone_before = any('git clone' in l for l in final_lines[:len(final_lines)-1])
+            # Check if git checkout is already on the next line
+            has_checkout_after = False
+            if i + 1 < len(result_lines) and 'git checkout' in result_lines[i + 1]:
+                has_checkout_after = True
+            if has_git_clone_before and not has_checkout_after:
+                final_lines.append('RUN git checkout {self.commit}')
+    
+    return '\n'.join(final_lines)
 
-    header_comment = f"""# Auto-generated profile for {owner}/{repo}
-# Commit: {commit}
-# Generated: {datetime.now().isoformat()}
-# Integration: Copy to swesmith/profiles/java.py
-"""
 
-    # Generate inline log parser based on detected framework
-    # Note: Parser logic must be inline since profiles will be copy-pasted
+def _generate_log_parser(parser_name: str) -> str:
+    """Generate log parser code based on test framework."""
     if parser_name == 'gradle':
-        log_parser_code = '''def log_parser(self, log: str) -> dict[str, str]:
+        return '''def log_parser(self, log: str) -> dict[str, str]:
         """Parse JUnit XML test results from Gradle output."""
         import re
         import xml.etree.ElementTree as ET
         
         test_status_map = {}
-        
-        # Extract XML content from the log
         xml_matches = re.findall(r'<\\?xml version.*?</testsuite>', log, re.DOTALL)
         
         for xml_content in xml_matches:
@@ -209,13 +242,11 @@ def generate_java_profile_class(owner: str, repo: str, metadata: Dict[str, Any],
                 root = ET.fromstring(xml_content)
                 suite_classname = root.get('name', '')
                 
-                # Parse each testcase
                 for testcase in root.findall('.//testcase'):
                     classname = testcase.get('classname', suite_classname)
                     methodname = testcase.get('name', '')
                     test_name = f"{classname}.{methodname}"
                     
-                    # Check for failure, error, or skipped
                     if testcase.find('failure') is not None or testcase.find('error') is not None:
                         test_status_map[test_name] = TestStatus.FAILED.value
                     elif testcase.find('skipped') is not None:
@@ -227,126 +258,72 @@ def generate_java_profile_class(owner: str, repo: str, metadata: Dict[str, Any],
         
         return test_status_map'''
     elif parser_name == 'maven':
-        log_parser_code = '''def log_parser(self, log: str) -> dict[str, str]:
-        """Parse Maven Surefire test output."""
+        return '''def log_parser(self, log: str) -> dict[str, str]:
+        """Parse Maven Surefire text output with per-method granularity.
+        
+        Parses individual test methods from Maven Surefire output when using:
+        mvn test -B -T 1C -Dsurefire.useFile=false -Dsurefire.printSummary=true -Dsurefire.reportFormat=plain
+        """
         import re
+        from swebench.harness.constants import TestStatus
         
         test_status_map = {}
+        # Pattern matches: [INFO] testMethodName -- Time elapsed: 0.001 s
+        # or: [ERROR] testMethodName -- Time elapsed: 0.001 s <<< FAILURE!
         pattern = r"^\\[(INFO|ERROR)\\]\\s+(.*?)\\s+--\\s+Time elapsed:\\s+([\\d.]+)\\s"
         
         for line in log.split("\\n"):
             if line.endswith("<<< FAILURE!") and line.startswith("[ERROR]"):
                 test_name = re.match(pattern, line)
-                if test_name:
-                    test_status_map[test_name.group(2)] = TestStatus.FAILED.value
-            elif any([line.startswith(s) for s in ["[INFO]", "[ERROR]"]]) and "Time elapsed:" in line:
+                if test_name is None:
+                    continue
+                test_status_map[test_name.group(2)] = TestStatus.FAILED.value
+            elif (
+                any([line.startswith(s) for s in ["[INFO]", "[ERROR]"]])
+                and "Time elapsed:" in line
+            ):
                 test_name = re.match(pattern, line)
-                if test_name:
-                    test_status_map[test_name.group(2)] = TestStatus.PASSED.value
-        
+                if test_name is None:
+                    continue
+                test_status_map[test_name.group(2)] = TestStatus.PASSED.value
         return test_status_map'''
     else:
-        log_parser_code = '''def log_parser(self, log: str) -> dict[str, str]:
-        """Parse test output - TODO: Implement parser for this framework."""
+        return '''def log_parser(self, log: str) -> dict[str, str]:
+        """Parse test output - customize for your framework."""
         return {}  # TODO: Implement parser'''
 
-    # Set appropriate timeout based on build system
-    if is_gradle:
-        timeout = 300  # Gradle: dependency resolution + compilation is slow
-        build_tool = "Gradle"
-    elif is_maven:
-        timeout = 400  # Maven: multi-threaded builds are very slow
-        build_tool = "Maven"
-    else:
-        timeout = 180
-        build_tool = "Java"
+
+def generate_java_profile_class(owner: str, repo: str, metadata: Dict[str, Any],
+                               parsed_results: Optional[Dict[str, Any]],
+                               dockerfile_content: Optional[str]) -> str:
+    """Generate SWE-smith compatible Java profile class code."""
+    if not dockerfile_content:
+        raise ValueError(f"No Dockerfile found for {owner}/{repo}. Agent must generate Dockerfile first.")
     
-    # Generate appropriate Dockerfile based on build system
-    if is_gradle:
-        # Read install commands to determine base image and build command
-        install_commands = metadata.get('install_commands', [])
-        
-        # Extract base image from Dockerfile or use default
-        base_image = "eclipse-temurin:17-jdk"  # default
-        java_version = "17"
-        if dockerfile_content:
-            import re
-            # Extract FROM line (e.g., "FROM eclipse-temurin:17-jdk")
-            from_match = re.search(r'FROM\s+([^\s]+)', dockerfile_content)
-            if from_match:
-                base_image = from_match.group(1)
-                # Extract version number
-                version_match = re.search(r':(\d+)', base_image)
-                if version_match:
-                    java_version = version_match.group(1)
-        
-        # Check if there's a subdirectory structure (like kse/ for keystore-explorer)
-        # Look for multiple WORKDIR commands in the existing Dockerfile
-        workdir_path = "/testbed"
-        subdirectory = ""
-        if dockerfile_content:
-            import re
-            workdir_matches = re.findall(r'WORKDIR\s+(.+)', dockerfile_content)
-            if len(workdir_matches) > 1:
-                # Extract the subdirectory from the last WORKDIR
-                # e.g., /app/kse -> kse, /testbed/kse -> kse
-                last_workdir = workdir_matches[-1].strip()
-                subdirectory = last_workdir.split('/')[-1]
-                if subdirectory:
-                    workdir_path = f"/testbed/{subdirectory}"
-        
-        # Get the build command from install_commands
-        build_cmd = "./gradlew clean build -x test || true"
-        if install_commands:
-            for cmd in install_commands:
-                if 'gradlew' in cmd and 'build' in cmd:
-                    build_cmd = cmd
-                    if ' || true' not in build_cmd:
-                        build_cmd += " || true"
-                    break
-        
-        # Generate Dockerfile with proper subdirectory handling
-        if workdir_path != "/testbed":
-            dockerfile_template = f'''FROM {base_image}
-RUN apt-get update && apt-get install -y git && rm -rf /var/lib/apt/lists/*
-RUN git clone https://github.com/{{self.mirror_name}} /testbed
-WORKDIR {workdir_path}
-RUN chmod +x gradlew
-RUN {build_cmd}
-'''
-        else:
-            dockerfile_template = f'''FROM {base_image}
-RUN apt-get update && apt-get install -y git && rm -rf /var/lib/apt/lists/*
-RUN git clone https://github.com/{{self.mirror_name}} /testbed
-WORKDIR /testbed
-RUN chmod +x gradlew
-RUN {build_cmd}
-'''
-    elif is_maven:
-        # Maven Dockerfile
-        java_version = "11"  # Maven projects often use Java 11
-        if dockerfile_content and 'openjdk-' in dockerfile_content:
-            import re
-            match = re.search(r'openjdk-(\d+)', dockerfile_content)
-            if match:
-                java_version = match.group(1)
-        
-        dockerfile_template = f'''FROM ubuntu:22.04
-ENV DEBIAN_FRONTEND=noninteractive
-ENV LANG=C.UTF-8
-ENV LC_ALL=C.UTF-8
-RUN apt-get update && apt-get install -y git openjdk-{java_version}-jdk maven
-RUN git clone https://github.com/{{self.mirror_name}} /testbed
-WORKDIR /testbed
-RUN mvn clean install -B -q -DskipTests -am || true
-'''
+    class_name = create_class_name(owner, repo, metadata.get('commit_hash', ''))
+    commit = metadata.get('commit_hash', 'unknown')
+    test_commands = metadata.get('test_commands', ['./gradlew test'])
+    test_cmd = test_commands[0] if test_commands else './gradlew test'
+    
+    # Determine timeout based on build system
+    is_maven = any('mvn' in cmd for cmd in test_commands)
+    timeout = 400 if is_maven else 300
+    build_tool = "Maven" if is_maven else "Gradle"
+    
+    # Use Maven parser if Maven detected, otherwise use parsed_results or default to gradle
+    if is_maven:
+        parser_name = 'maven'
     else:
-        # Generic Java Dockerfile
-        dockerfile_template = '''FROM openjdk:17-jdk-slim
-RUN apt-get update && apt-get install -y git && rm -rf /var/lib/apt/lists/*
-RUN git clone https://github.com/{self.mirror_name} /testbed
-WORKDIR /testbed
-'''
+        parser_name = parsed_results.get('parser', 'gradle') if parsed_results else 'gradle'
+    
+    dockerfile_template = _template_dockerfile(dockerfile_content)
+    log_parser_code = _generate_log_parser(parser_name)
+
+    header_comment = f"""# Auto-generated profile for {owner}/{repo}
+# Commit: {commit}
+# Generated: {datetime.now().isoformat()}
+# Integration: Copy to swesmith/profiles/java.py
+"""
 
     profile_code = f'''{header_comment}
 @dataclass
@@ -373,12 +350,16 @@ def generate_javascript_profile_class(owner: str, repo: str, metadata: Dict[str,
                                     parsed_results: Optional[Dict[str, Any]],
                                     dockerfile_content: Optional[str]) -> str:
     """Generate SWE-smith compatible JavaScript profile class code."""
+    if not dockerfile_content:
+        raise ValueError(f"No Dockerfile found for {owner}/{repo}. Agent must generate Dockerfile first.")
+    
     class_name = create_class_name(owner, repo, metadata.get('commit_hash', ''))
     commit = metadata.get('commit_hash', 'unknown')
     test_commands = metadata.get('test_commands', ['npm test'])
     test_cmd = test_commands[0] if test_commands else 'npm test'
 
     parser_name = parsed_results.get('parser', 'mocha') if parsed_results else 'mocha'
+    dockerfile_template = _template_dockerfile(dockerfile_content)
 
     header_comment = f"""# Auto-generated profile for {owner}/{repo}
 # Commit: {commit}
@@ -386,50 +367,13 @@ def generate_javascript_profile_class(owner: str, repo: str, metadata: Dict[str,
 # Integration: Copy to swesmith/profiles/javascript.py
 """
 
-    # Generate inline log parser
+    # Generate inline log parser for JS frameworks
     if parser_name == 'jest':
-        log_parser_code = '''def log_parser(self, log: str) -> dict[str, str]:
-        """Parse Jest test output."""
-        import re
-        test_status_map = {}
-        
-        for line in log.split("\\n"):
-            match = re.match(r'^\\s*(PASS|FAIL)\\s+(.+?)\\s*$', line.strip())
-            if match:
-                status, test_file = match.groups()
-                test_status_map[test_file] = TestStatus.PASSED.value if status == "PASS" else TestStatus.FAILED.value
-        
-        return test_status_map'''
+        log_parser_code = _generate_log_parser('jest_unused')  # placeholder
     elif parser_name == 'mocha':
-        log_parser_code = '''def log_parser(self, log: str) -> dict[str, str]:
-        """Parse Mocha test output."""
-        import re
-        test_status_map = {}
-        
-        for line in log.split("\\n"):
-            if re.match(r'^\\s*✓', line):
-                test_name = line.strip()[2:].strip()
-                test_status_map[test_name] = TestStatus.PASSED.value
-            elif re.match(r'^\\s*\\d+\\)', line):
-                test_name = line.split(')', 1)[1].strip()
-                test_status_map[test_name] = TestStatus.FAILED.value
-        
-        return test_status_map'''
+        log_parser_code = _generate_log_parser('mocha_unused')  # placeholder
     else:
-        log_parser_code = '''def log_parser(self, log: str) -> dict[str, str]:
-        """Parse Mocha test output (default fallback)."""
-        import re
-        test_status_map = {}
-        
-        for line in log.split("\\n"):
-            if re.match(r'^\\s*✓', line):
-                test_name = line.strip()[2:].strip()
-                test_status_map[test_name] = TestStatus.PASSED.value
-            elif re.match(r'^\\s*\\d+\\)', line):
-                test_name = line.split(')', 1)[1].strip()
-                test_status_map[test_name] = TestStatus.FAILED.value
-        
-        return test_status_map'''
+        log_parser_code = _generate_log_parser('unknown')
 
     profile_code = f'''{header_comment}
 @dataclass
@@ -441,12 +385,7 @@ class {class_name}(JavaScriptProfile):
 
     @property
     def dockerfile(self):
-        return f"""FROM node:18-slim
-RUN apt-get update && apt-get install -y git
-RUN git clone https://github.com/{self.mirror_name} /testbed
-WORKDIR /testbed
-RUN npm install
-"""
+        return f"""{dockerfile_template}"""
 
     {log_parser_code}
 
@@ -460,6 +399,9 @@ def generate_generic_profile_class(owner: str, repo: str, metadata: Dict[str, An
                                  parsed_results: Optional[Dict[str, Any]],
                                  dockerfile_content: Optional[str]) -> str:
     """Generate SWE-smith compatible generic profile class code."""
+    if not dockerfile_content:
+        raise ValueError(f"No Dockerfile found for {owner}/{repo}. Agent must generate Dockerfile first.")
+    
     class_name = create_class_name(owner, repo, metadata.get('commit_hash', ''))
     commit = metadata.get('commit_hash', 'unknown')
     language = metadata.get('language', 'unknown').lower()
@@ -467,69 +409,14 @@ def generate_generic_profile_class(owner: str, repo: str, metadata: Dict[str, An
     test_cmd = test_commands[0] if test_commands else 'make test'
 
     parser_name = parsed_results.get('parser', 'unknown') if parsed_results else 'unknown'
-
-    base_image = {
-        'go': 'golang:1.21',
-        'rust': 'rust:latest',
-        'c': 'gcc:latest',
-        'cpp': 'gcc:latest',
-    }.get(language, 'ubuntu:22.04')
+    dockerfile_template = _template_dockerfile(dockerfile_content)
+    log_parser_code = _generate_log_parser(parser_name)
 
     header_comment = f"""# Auto-generated profile for {owner}/{repo} ({language})
 # Commit: {commit}
 # Generated: {datetime.now().isoformat()}
 # Integration: Copy to swesmith/profiles/{language}.py
 """
-
-    # Generate inline log parser
-    if parser_name == 'go_test':
-        log_parser_code = '''def log_parser(self, log: str) -> dict[str, str]:
-        """Parse Go test output."""
-        import re
-        test_status_map = {}
-        
-        for line in log.split("\\n"):
-            match = re.match(r'^---\\s+(PASS|FAIL|SKIP):\\s+(.+?)\\s+\\(', line)
-            if match:
-                status, test_name = match.groups()
-                if status == "PASS":
-                    test_status_map[test_name] = TestStatus.PASSED.value
-                elif status == "FAIL":
-                    test_status_map[test_name] = TestStatus.FAILED.value
-                elif status == "SKIP":
-                    test_status_map[test_name] = TestStatus.SKIPPED.value
-        
-        return test_status_map'''
-    elif parser_name == 'cargo':
-        log_parser_code = '''def log_parser(self, log: str) -> dict[str, str]:
-        """Parse Cargo test output."""
-        import re
-        test_status_map = {}
-        
-        for line in log.split("\\n"):
-            match = re.match(r'^test\\s+(.+?)\\s+\\.\\.\\.\\s+(ok|FAILED|ignored)', line)
-            if match:
-                test_name, status = match.groups()
-                if status == "ok":
-                    test_status_map[test_name] = TestStatus.PASSED.value
-                elif status == "FAILED":
-                    test_status_map[test_name] = TestStatus.FAILED.value
-                elif status == "ignored":
-                    test_status_map[test_name] = TestStatus.SKIPPED.value
-        
-        return test_status_map'''
-    else:
-        log_parser_code = '''def log_parser(self, log: str) -> dict[str, str]:
-        """Generic parser - customize based on your test framework."""
-        test_status_map = {}
-        
-        for line in log.split("\\n"):
-            if "PASS" in line or "passed" in line.lower():
-                test_status_map[line.strip()] = TestStatus.PASSED.value
-            elif "FAIL" in line or "failed" in line.lower():
-                test_status_map[line.strip()] = TestStatus.FAILED.value
-        
-        return test_status_map'''
 
     profile_code = f'''{header_comment}
 @dataclass
@@ -541,11 +428,7 @@ class {class_name}(RepoProfile):
 
     @property
     def dockerfile(self):
-        return f"""FROM {base_image}
-RUN apt-get update && apt-get install -y git
-RUN git clone https://github.com/{self.mirror_name} /testbed
-WORKDIR /testbed
-"""
+        return f"""{dockerfile_template}"""
 
     {log_parser_code}
 

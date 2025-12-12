@@ -5,6 +5,7 @@ CLAUDE.md
 agent-result/
 agent-result_arch/
 github_repo_scraper/*.json
+github_repo_scraper/*/
 .env
 *.out
 *.png
