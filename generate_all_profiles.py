@@ -13,6 +13,8 @@ def main():
     parser = argparse.ArgumentParser(description="Generate profiles for a range of repositories.")
     parser.add_argument('--range', type=str, default='0-50', help='Range of repositories to process (e.g., "0-50", exclusive of the end index).')
     parser.add_argument('--model', type=str, default='gemini/gemini-3-flash-preview', help='Model to use for generation.')
+    parser.add_argument('--verify', action='store_true', help='Instruct the agent to verify generated Dockerfiles by building them.')
+    parser.add_argument('--livestream', action='store_true', help='Enable real-time output streaming from the agent.')
     args = parser.parse_args()
 
     model = args.model
@@ -60,6 +62,14 @@ def main():
         # If the repository is identified as Python, add the --python-repo flag
         if language == 'python':
             cmd.append('--python-repo')
+        
+        # If verify flag is set, add it to the command
+        if args.verify:
+            cmd.append('--verify')
+        
+        # If livestream flag is set, add it to the command
+        if args.livestream:
+            cmd.append('--livestream')
             
         try:
             # Impose a timeout
