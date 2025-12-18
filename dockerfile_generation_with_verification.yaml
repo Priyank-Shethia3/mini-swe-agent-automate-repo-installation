@@ -32,7 +32,7 @@ agent:
        - Appropriate base image
        - Git clone of the repository
        - Dependency installation ONLY (NO test execution)
-       - Proper working directory and entrypoint
+       - Proper working directory and default command (CMD)
        - **For Maven projects**: Use `-B` (batch mode) and `-q` (quiet) flags to reduce verbosity (e.g., `mvn clean install -B -q -DskipTests`)
          - For multi-module Maven projects with problematic modules, you can use `-pl <module>` to build only specific modules (e.g., `mvn clean install -B -pl core -DskipTests -am`)
        - **For Gradle projects**: Use `--no-daemon` and `--console=plain` to reduce output
