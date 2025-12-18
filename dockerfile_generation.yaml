@@ -32,7 +32,7 @@ agent:
        - Appropriate base image
        - Git clone of the repository
        - Dependency installation ONLY (NO test execution)
-       - Proper working directory and entrypoint
+       - Proper working directory and default command (CMD)
        - **For Maven projects**: Use `-B` (batch mode) and `-q` (quiet) flags to reduce verbosity (e.g., `mvn clean install -B -q -DskipTests`)
        - **For Gradle projects**: Use `--no-daemon` and `--console=plain` to reduce output
     8. Create a repo_metadata.json file in the agent-result/$repo_folder_name directory containing:

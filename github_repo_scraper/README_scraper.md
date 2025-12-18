@@ -77,6 +77,34 @@ python github_repo_scraper.py \
   --format both
 ```
 
+### Three-Stage Filtering Process
+
+This workflow is designed to discover high-quality, functional JavaScript repositories suitable for test-based evaluation (e.g., for SWE-bench style benchmarks).
+
+#### 1. Initial Scrape
+Scrape active repositories with high star counts (e.g., >= 10K stars) and recent activity.
+```bash
+python github_repo_scraper.py --language javascript --min-stars 10000 --pushed-after 2025-01-01
+```
+Script: [github_repo_scraper.py](https://github.com/Priyank-Shethia3/mini-swe-agent-automate-repo-installation/blob/main/github_repo_scraper/github_repo_scraper.py)
+
+#### 2. Exclude Existing Repositories
+Filter out repositories that are already present in major benchmarks like SWE-smith, SWE-bench Multilingual, or Multi SWE-Bench.
+```bash
+# Ensure your current repository list is in 'repos.csv' 
+# and known repositories are in 'existing_repos.csv'
+python filter_existing.py
+```
+This produces `new_repos.csv`.
+
+#### 3. Targeted Curation
+Use keyword filtering based on name, description, and topics to further narrow down the list to functional JavaScript-only repositories with likely good test coverage. This step excludes informational repos (lists, tutorials), TypeScript-primary projects, and boilerplate/demos.
+```bash
+# Processes 'new_repos.csv' and outputs 'new_curated_repos.csv'
+python curate_js.py
+```
+The final output is randomly shuffled to avoid bias.
+
 ### Output Options
 
 ```bash
