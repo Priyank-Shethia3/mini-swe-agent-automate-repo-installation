@@ -46,6 +46,11 @@ After the generation finishes, break down the success rate, cost, and duration w
 python analyze_results.py
 ```
 
+Lastly, collect all profiles into a single `javascript.py` and append to `swesmith/profiles/javascript.py`:
+```
+uv run collect_profiles.py
+```
+
 ## 🚀 Quick Start
 
 **Full automated pipeline (recommended):**
