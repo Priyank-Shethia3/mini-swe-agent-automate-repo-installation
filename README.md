@@ -5,19 +5,45 @@ A sophisticated 3-stage automated pipeline that converts GitHub repositories int
 ## 🚀 JS quick start
 
 Generate repo profiles with:
+```bash
+# Basic usage
+python generate_all_profiles.py --range 0-50
+
+# With Dockerfile verification (recommended)
+python generate_all_profiles.py --range 0-50 --verify
+
+# With live output streaming
+python generate_all_profiles.py --range 0-50 --verify --livestream
+
+# In tmux for long-running processes
+tmux new -s profiles "python generate_all_profiles.py --range 0-50 --verify"
 ```
-tmux new -s profiles "uv run generate_all_profiles.py --range 0-50"
+
+**Options:**
+- `--range`: Specify repository indices to process (e.g., `0-50`, `50-100`)
+- `--model`: Model to use (default: `gemini/gemini-3-flash-preview`)
+- `--verify`: Instruct agent to verify Dockerfiles by building them
+- `--livestream`: Enable real-time output streaming from the agent
+
+Adjust `--range` to run different subsets.
+
+**Prerequisites:**
+```bash
+# Install mini-swe-agent (one-time setup)
+pip install -e mini-swe-agent/
+
+# Set your API key
+export GEMINI_API_KEY="your-gemini-api-key"  # or ANTHROPIC_API_KEY, OPENAI_API_KEY
 ```
-Adjust --range to run different subsets.
 
 To run with Gemini-3.0-flash, upgrade the LiteLLM dependency to the latest version:
-```
-uv pip install "git+https://github.com/BerriAI/litellm.git@v1.80.10.rc.4"
+```bash
+pip install "git+https://github.com/BerriAI/litellm.git@v1.80.10.rc.4"
 ```
 
 After the generation finishes, break down the success rate, cost, and duration with:
-```
-uv run analyze_results.py
+```bash
+python analyze_results.py
 ```
 
 ## 🚀 Quick Start
