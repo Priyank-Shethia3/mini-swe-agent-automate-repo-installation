@@ -351,9 +351,9 @@ python verify_testing.py agent-result/owner-repo --python-repo
 
 | Model | Best For | Speed | Accuracy |
 |--------|----------|--------|----------|
-| `claude-sonnet-4-20250514` | Complex repos, high accuracy | Slower | ⭐⭐⭐⭐⭐ |
-| `gemini-3.0-flash` | Fast iteration, high throughput | Faster | ⭐⭐⭐⭐ |
-| `gpt-4o-mini` | Simple repos, fast iteration | Faster | ⭐⭐⭐⭐ |
+| `gemini-3.0-flash` | Fast iteration, high throughput | Faster | ⭐⭐⭐⭐⭐ |
+| `claude-sonnet-4-20250514` | Complex repos, high accuracy | Slower | ⭐⭐⭐⭐ |
+| `gpt-4o-mini` | Simple repos, fast iteration | Faster | ⭐⭐⭐ |
 
 ### Extended Timeouts
 
