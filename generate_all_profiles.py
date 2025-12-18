@@ -6,15 +6,16 @@ import argparse
 
 def main():
     csv_path = './github_repo_scraper/new_curated_repos.csv'
-    model = 'claude-sonnet-4-5-20250929'
-    
     if not os.path.exists(csv_path):
         print(f"Error: {csv_path} not found.")
         sys.exit(1)
 
     parser = argparse.ArgumentParser(description="Generate profiles for a range of repositories.")
     parser.add_argument('--range', type=str, default='0-50', help='Range of repositories to process (e.g., "0-50", exclusive of the end index).')
+    parser.add_argument('--model', type=str, default='gemini/gemini-3-flash-preview', help='Model to use for generation.')
     args = parser.parse_args()
+
+    model = args.model
 
     try:
         if '-' in args.range:
@@ -54,7 +55,7 @@ def main():
             
         print(f"\n[{i+1}/{len(repos)}] Generating profile for {full_name}...")
         
-        cmd = ['python', 'generate_profile.py', full_name, '--model', model, '--max-cost', '0.2', '--max-time', '300']
+        cmd = ['python', 'generate_profile.py', full_name, '--model', model, '--max-cost', '0.2', '--max-time', '600']
         
         # If the repository is identified as Python, add the --python-repo flag
         if language == 'python':
@@ -64,7 +65,7 @@ def main():
             # Impose a timeout
             # check=False ensures it doesn't raise CalledProcessError automatically, 
             # allowing us to handle it ourselves or simply move on.
-            result = subprocess.run(cmd, check=False, timeout=600)
+            result = subprocess.run(cmd, check=False, timeout=900)
             
             if result.returncode != 0:
                 print(f"⚠️  Command for {full_name} returned non-zero exit code: {result.returncode}")

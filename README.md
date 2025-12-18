@@ -40,6 +40,7 @@ pip install -e .
 # API Keys (choose one)
 export ANTHROPIC_API_KEY="your-anthropic-key"
 export OPENAI_API_KEY="your-openai-key"
+export GEMINI_API_KEY="your-gemini-key"
 ```
 
 ### Dependencies
@@ -331,8 +332,9 @@ python verify_testing.py agent-result/owner-repo --python-repo
 ### Model Selection
 
 | Model | Best For | Speed | Accuracy |
-|-------|----------|--------|----------|
+|--------|----------|--------|----------|
 | `claude-sonnet-4-20250514` | Complex repos, high accuracy | Slower | ⭐⭐⭐⭐⭐ |
+| `gemini-3.0-flash` | Fast iteration, high throughput | Faster | ⭐⭐⭐⭐ |
 | `gpt-4o-mini` | Simple repos, fast iteration | Faster | ⭐⭐⭐⭐ |
 
 ### Extended Timeouts
