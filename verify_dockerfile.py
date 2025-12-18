@@ -701,8 +701,6 @@ def main():
                 print(f"   Installation/build failed")
             if not testing_success:
                 print(f"   Tests failed or did not run properly")
-                if not args.allow_test_failures:
-                    print(f"   💡 Tip: Use --allow-test-failures to accept repos with test failures")
             sys.exit(1)
 
     except KeyboardInterrupt:

@@ -25,6 +25,8 @@ from log_parser.parsers.cargo import parse_log_cargo
 from log_parser.parsers.maven import parse_log_maven
 from log_parser.parsers.gradle import parse_log_gradle
 from log_parser.parsers.junit import parse_log_junit
+from log_parser.parsers.lodash_custom import parse_log_lodash_custom
+from log_parser.parsers.karma import parse_log_karma
 
 
 # Parser registry
@@ -37,11 +39,14 @@ PARSERS = {
     'maven': parse_log_maven,
     'gradle': parse_log_gradle,
     'junit': parse_log_junit,
+    'lodash_custom': parse_log_lodash_custom,
+    'karma': parse_log_karma,
+    'jasmine': parse_log_karma,  # Jasmine uses Karma runner
 }
 
 # Language to framework mappings
 LANGUAGE_FRAMEWORKS = {
-    'javascript': ['jest', 'mocha'],
+    'javascript': ['jest', 'mocha', 'karma', 'jasmine'],
     'python': ['pytest'],
     'go': ['go_test'],
     'rust': ['cargo'],
@@ -98,7 +103,13 @@ def load_test_output(directory: Path) -> Optional[str]:
 
 
 def try_parsers(log_content: str, parser_names: List[str]) -> Optional[Tuple[Dict[str, str], str]]:
-    """Try multiple parsers and return the first one that produces results along with parser name."""
+    """
+    Try multiple parsers and combine results from all that produce output.
+    This allows handling test output from multiple frameworks in a single file.
+    """
+    combined_results = {}
+    successful_parsers = []
+    
     for parser_name in parser_names:
         if parser_name not in PARSERS:
             continue
@@ -107,12 +118,17 @@ def try_parsers(log_content: str, parser_names: List[str]) -> Optional[Tuple[Dic
         try:
             result = parser_func(log_content)
             if result:  # Parser returned some results
-                print(f"Successfully parsed with {parser_name} parser")
-                return result, parser_name
+                print(f"Successfully parsed with {parser_name} parser ({len(result)} tests)")
+                combined_results.update(result)
+                successful_parsers.append(parser_name)
         except Exception as e:
             print(f"Parser {parser_name} failed with error: {e}")
             continue
-
+    
+    if combined_results:
+        parser_names_str = "+".join(successful_parsers)
+        return combined_results, parser_names_str
+    
     return None
 
 
@@ -194,41 +210,41 @@ def parse_test_output(directory: Path, is_python_repo: bool = False) -> Optional
         print(f"🐍 Overriding language detection: {language} -> python (due to --python-repo flag)")
         language = 'python'
 
-    # Step 5: Try parsers in priority order
+    # Step 5: Try all relevant parsers and combine results
     print(f"🧪 Starting parser selection...")
 
-    # Priority 1: Try exact framework match
+    # Build list of parsers to try in priority order
+    parsers_to_try = []
+    
+    # Priority 1: Exact framework match
     if test_framework and test_framework in PARSERS:
-        print(f"   Priority 1: Trying exact framework match: {test_framework}")
-        parser_result = try_parsers(log_content, [test_framework])
-        if parser_result:
-            result, parser_name = parser_result
-            print(f"✅ Successfully parsed with framework-specific parser: {parser_name}")
-            return result, parser_name
-        print(f"   Framework parser {test_framework} produced no results")
-
-    # Priority 2: Try all parsers for the language
+        parsers_to_try.append(test_framework)
+        print(f"   Will try framework-specific parser: {test_framework}")
+    
+    # Priority 2: Language-based parsers
     if language in LANGUAGE_FRAMEWORKS:
         framework_list = LANGUAGE_FRAMEWORKS[language]
-        # Remove the already-tried framework to avoid duplicate attempts
-        framework_list = [f for f in framework_list if f != test_framework]
-
-        if framework_list:
-            print(f"   Priority 2: Trying language-based parsers for {language}: {framework_list}")
-            parser_result = try_parsers(log_content, framework_list)
-            if parser_result:
-                result, parser_name = parser_result
-                print(f"✅ Successfully parsed with language-based parser: {parser_name}")
-                return result, parser_name
-            print(f"   No language-based parsers for {language} produced results")
-
-    # Priority 3: Try all parsers as fallback
+        # Add language frameworks, avoiding duplicates
+        for framework in framework_list:
+            if framework not in parsers_to_try:
+                parsers_to_try.append(framework)
+        print(f"   Will try language-based parsers for {language}: {[f for f in framework_list if f not in [test_framework]]}")
+    
+    # Try all relevant parsers at once (they'll combine results)
+    if parsers_to_try:
+        print(f"   Trying parsers: {parsers_to_try}")
+        parser_result = try_parsers(log_content, parsers_to_try)
+        if parser_result:
+            result, parser_name = parser_result
+            print(f"✅ Successfully parsed with: {parser_name}")
+            return result, parser_name
+    
+    # Priority 3: Try all remaining parsers as fallback
     all_parsers = list(PARSERS.keys())
-    tried_parsers = [test_framework] + LANGUAGE_FRAMEWORKS.get(language, [])
-    untried_parsers = [p for p in all_parsers if p not in tried_parsers]
+    untried_parsers = [p for p in all_parsers if p not in parsers_to_try]
 
     if untried_parsers:
-        print(f"   Priority 3: Trying remaining parsers as fallback: {untried_parsers}")
+        print(f"   Trying remaining parsers as fallback: {untried_parsers}")
         parser_result = try_parsers(log_content, untried_parsers)
         if parser_result:
             result, parser_name = parser_result
@@ -236,7 +252,7 @@ def parse_test_output(directory: Path, is_python_repo: bool = False) -> Optional
             return result, parser_name
         print(f"   No fallback parsers produced results")
 
-    # Priority 4: Report error if language not supported
+    # Report error if no parsers worked
     if language not in LANGUAGE_FRAMEWORKS:
         print(f"⚠️  Unsupported language '{language}'")
         print(f"   Supported languages: {list(LANGUAGE_FRAMEWORKS.keys())}")
