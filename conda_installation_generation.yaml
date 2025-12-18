@@ -22,7 +22,7 @@ agent:
 
     ## Recommended Workflow
 
-    1. Clone the repository using git clone under the agent-result/$repo_folder_name/cloned_repo directory (repo_folder_name = task.replace("/", "-"))
+    1. Clone the repository using **shallow clone** (`git clone --depth 1 --recurse-submodules --shallow-submodules`) under the agent-result/$repo_folder_name/cloned_repo directory (repo_folder_name = task.replace("/", "-")). Use `--depth 1` to only fetch the latest commit for faster cloning. Include `--recurse-submodules --shallow-submodules` to handle repositories with submodules
     2. Get the latest commit hash from the repository (required for SWE-smith workflow)
     3. Analyze the Python codebase structure and identify package management files
     4. Look for Python package management files (requirements.txt, setup.py, pyproject.toml, setup.cfg, environment.yml)
@@ -132,7 +132,7 @@ agent:
     THOUGHT: I need to clone the repository first to understand its Python package structure and dependencies.
 
     ```bash
-    git clone https://github.com/Instagram/MonkeyType.git agent-result/Instagram-MonkeyType/cloned_repo
+    git clone --depth 1 --recurse-submodules --shallow-submodules https://github.com/Instagram/MonkeyType.git agent-result/Instagram-MonkeyType/cloned_repo
     ```
     </example_response>
 

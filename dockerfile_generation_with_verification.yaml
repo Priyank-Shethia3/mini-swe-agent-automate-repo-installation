@@ -22,7 +22,7 @@ agent:
 
     ## Recommended Workflow
 
-    1. Clone the repository using git clone under the agent-result/$repo_folder_name/cloned_repo directory (repo_folder_name = task.replace("/", "-"))
+    1. Clone the repository using **shallow clone** (`git clone --depth 1 --recurse-submodules --shallow-submodules`) under the agent-result/$repo_folder_name/cloned_repo directory (repo_folder_name = task.replace("/", "-")). Use `--depth 1` to only fetch the latest commit for faster cloning. Include `--recurse-submodules --shallow-submodules` to handle repositories with submodules
     2. Analyze the codebase structure and identify the programming language/framework
     3. Look for package management files (package.json, requirements.txt, Cargo.toml, pom.xml, etc.)
     4. Determine the appropriate base Docker image
@@ -72,7 +72,7 @@ agent:
 
     ## Important Guidelines
 
-    - Use `git clone https://github.com/{{task}}.git` instead of COPY commands
+    - Use `git clone --depth 1 --recurse-submodules --shallow-submodules https://github.com/{{task}}.git` instead of COPY commands (shallow clone for faster performance)
     - Choose minimal base images when possible (e.g., node:18-slim, python:3.11-slim), but make sure the version is supported by the repository.
     - When using slim/minimal base images (like `node:18-slim`, `python:3.x-slim`), git is NOT installed by default. You MUST install git before cloning:
       ```dockerfile
@@ -106,7 +106,7 @@ agent:
     THOUGHT: I need to clone the repository first to understand its structure and dependencies.
 
     ```bash
-    git clone https://github.com/expressjs/express.git agent-result/expressjs-express/cloned_repo
+    git clone --depth 1 --recurse-submodules --shallow-submodules https://github.com/expressjs/express.git agent-result/expressjs-express/cloned_repo
     ```
     </example_response>
 
@@ -121,7 +121,7 @@ agent:
     RUN apt-get update && apt-get install -y git && rm -rf /var/lib/apt/lists/*
     
     WORKDIR /app
-    RUN git clone https://github.com/expressjs/express.git .
+    RUN git clone --depth 1 --recurse-submodules --shallow-submodules https://github.com/expressjs/express.git .
     RUN npm install
     CMD ["/bin/bash"]
     EOF
