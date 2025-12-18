@@ -685,7 +685,7 @@ class {class_name}({base_class}):
 
 def run_pipeline(repo_name: str, is_python_repo: bool, model_name: str = "claude-sonnet-4-20250514",
                  livestream: bool = False, verify: bool = False, verify_testing: bool = False, 
-                 max_cost: float = 2.0, max_time: int = 1200) -> Dict[str, Any]:
+                 max_cost: float = 2.0, max_time: int = 1200, failure_threshold: float = 0.09) -> Dict[str, Any]:
     """Run the complete 3-stage pipeline with full output capture."""
     owner, repo = validate_repo_name(repo_name)
     result_dir = Path("agent-result") / f"{owner}-{repo}"
@@ -720,7 +720,8 @@ def run_pipeline(repo_name: str, is_python_repo: bool, model_name: str = "claude
             "python", str(script_dir / "simple_repo_to_dockerfile.py"), repo_name,
             "--model_name", model_name,
             "--max-cost", str(max_cost),
-            "--max-time", str(max_time)
+            "--max-time", str(max_time),
+            "--failure-threshold", str(failure_threshold)
         ]
         if is_python_repo:
             stage1_cmd.append("--python-repo")
@@ -744,7 +745,7 @@ def run_pipeline(repo_name: str, is_python_repo: bool, model_name: str = "claude
         print(f"✅ Stage 1 completed successfully")
 
         # Stage 2: Verify and run tests
-        stage2_cmd = ["python", str(script_dir / "verify_dockerfile.py"), str(result_dir)]
+        stage2_cmd = ["python", str(script_dir / "verify_dockerfile.py"), str(result_dir), "--failure-threshold", str(failure_threshold)]
         if is_python_repo:
             stage2_cmd.append("--python-repo")
         # Only cleanup if we're not doing test parsing (which needs test_output.txt)
@@ -767,7 +768,7 @@ def run_pipeline(repo_name: str, is_python_repo: bool, model_name: str = "claude
             print(f"✅ Stage 2 completed successfully")
 
         # Stage 3: Parse test output
-        stage3_cmd = ["python", str(script_dir / "verify_testing.py"), str(result_dir)]
+        stage3_cmd = ["python", str(script_dir / "verify_testing.py"), str(result_dir), "--failure-threshold", str(failure_threshold)]
         if is_python_repo:
             stage3_cmd.append("--python-repo")
 
@@ -977,6 +978,12 @@ def main():
         default=1200,
         help="Maximum time in seconds for agent execution in Stage 1 (default: 1200 = 20 minutes)"
     )
+    parser.add_argument(
+        "--failure-threshold",
+        type=float,
+        default=0.09,
+        help="Maximum fraction of tests allowed to fail (default: 0.09 = 9%%)"
+    )
 
     args = parser.parse_args()
 
@@ -986,7 +993,7 @@ def main():
 
         # Run the complete pipeline
         pipeline_results = run_pipeline(args.repo_name, args.python_repo, args.model, args.livestream, args.verify,
-                                       args.verify_testing, args.max_cost, args.max_time)
+                                       args.verify_testing, args.max_cost, args.max_time, args.failure_threshold)
 
         # Generate profile
         profile_code = generate_profile_from_pipeline(pipeline_results, args.python_repo)

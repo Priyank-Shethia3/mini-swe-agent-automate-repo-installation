@@ -16,6 +16,7 @@ def main():
     parser.add_argument('--verify', action='store_true', help='Instruct the agent to verify generated Dockerfiles by building them.')
     parser.add_argument('--verify-testing', action='store_true', help='Instruct the agent to also run verify_testing.py to parse test output (implies --verify).')
     parser.add_argument('--livestream', action='store_true', help='Enable real-time output streaming from the agent.')
+    parser.add_argument('--failure-threshold', type=float, default=0.09, help='Maximum fraction of tests allowed to fail (default: 0.09 = 9%%)')
     args = parser.parse_args()
 
     model = args.model
@@ -71,7 +72,7 @@ def main():
         print(f"\n[{i+1}/{len(repos)}] Generating profile for {full_name}...")
         stats['total_attempted'] += 1
         
-        cmd = ['python', 'generate_profile.py', full_name, '--model', model, '--max-cost', '0.2', '--max-time', '1200']
+        cmd = ['python', 'generate_profile.py', full_name, '--model', model, '--max-cost', '0.2', '--max-time', '1200', '--failure-threshold', str(args.failure_threshold)]
         
         # If the repository is identified as Python, add the --python-repo flag
         if language == 'python':

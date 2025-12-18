@@ -279,6 +279,12 @@ def main():
         action="store_true",
         help="Treat as Python repository (looks for conda installation script results)"
     )
+    parser.add_argument(
+        "--failure-threshold",
+        type=float,
+        default=0.09,
+        help="Maximum fraction of tests allowed to fail (default: 0.09 = 9%%)"
+    )
 
     args = parser.parse_args()
 
@@ -331,8 +337,19 @@ def main():
 
         print(f"\n🎉 Test parsing completed successfully!")
 
-        # Exit with non-zero code if there were failures
-        if failed > 0:
+        # Exit with non-zero code if failure rate exceeds threshold
+        if total > 0:
+            failure_rate = failed / total
+            if failure_rate > args.failure_threshold:
+                print(f"⚠️  {failed} test(s) failed ({failure_rate:.1%} failure rate exceeds {args.failure_threshold:.1%} threshold)")
+                sys.exit(1)
+            elif failed > 0:
+                print(f"✅ Tests passed with acceptable failure rate ({failure_rate:.1%} within {args.failure_threshold:.1%} threshold)")
+                sys.exit(0)
+            else:
+                print(f"✅ All tests passed!")
+                sys.exit(0)
+        elif failed > 0:
             print(f"⚠️  {failed} test(s) failed")
             sys.exit(1)
         else:

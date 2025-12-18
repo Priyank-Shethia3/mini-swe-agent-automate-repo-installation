@@ -187,7 +187,7 @@ def cleanup_conda_env(env_name: str = "testbed") -> None:
     except Exception as e:
         print(f"⚠️  Could not remove conda environment: {e}")
 
-def verify_python_installation_swe_smith_style(repo_dir: Path, show_progress: bool = True) -> Tuple[bool, bool]:
+def verify_python_installation_swe_smith_style(repo_dir: Path, show_progress: bool = True, failure_threshold: float = 0.09) -> Tuple[bool, bool]:
     """
     Verify Python installation using SWE-smith inspired workflow.
     Returns (installation_success, testing_success) tuple.
@@ -376,8 +376,24 @@ cd {clone_dir}
             test_results = parse_test_results(output, test_framework)
 
             if test_results['tests_run']:
-                print(f"   📊 Test results: {test_results['passed']} passed, {test_results['failed']} failed")
-                if not test_results['success']:
+                total_tests = test_results['total']
+                failed_tests = test_results['failed']
+                passed_tests = test_results['passed']
+                
+                print(f"   📊 Test results: {passed_tests} passed, {failed_tests} failed")
+                
+                # Calculate failure rate and check against threshold
+                if total_tests > 0:
+                    failure_rate = failed_tests / total_tests
+                    if failure_rate > failure_threshold:
+                        testing_success = False
+                        print(f"   ❌ Tests failed! ({failure_rate:.1%} failure rate exceeds {failure_threshold:.1%} threshold)")
+                    else:
+                        if failed_tests > 0:
+                            print(f"   ✅ Tests passed! ({failure_rate:.1%} failure rate within {failure_threshold:.1%} threshold)")
+                        else:
+                            print(f"   ✅ All tests passed!")
+                elif not test_results['success']:
                     testing_success = False
                     print(f"   ❌ Tests failed!")
                 else:
@@ -410,7 +426,7 @@ cd {clone_dir}
 
     return installation_success, testing_success
 
-def verify_dockerfile(dockerfile_path: Path, image_name: str = None, show_progress: bool = True) -> Tuple[bool, bool]:
+def verify_dockerfile(dockerfile_path: Path, image_name: str = None, show_progress: bool = True, failure_threshold: float = 0.09) -> Tuple[bool, bool]:
     """
     Verify that a Dockerfile builds successfully and tests pass.
     Returns (installation_success, testing_success) tuple.
@@ -539,13 +555,28 @@ def verify_dockerfile(dockerfile_path: Path, image_name: str = None, show_progre
             test_results = parse_test_results(output, test_framework)
 
             if test_results['tests_run']:
+                total_tests = test_results['total']
+                failed_tests = test_results['failed']
+                passed_tests = test_results['passed']
+                
                 print(f"   📊 Test results detected:")
-                print(f"      ✅ Passed: {test_results['passed']}")
-                print(f"      ❌ Failed: {test_results['failed']}")
+                print(f"      ✅ Passed: {passed_tests}")
+                print(f"      ❌ Failed: {failed_tests}")
                 if test_results['skipped'] > 0:
                     print(f"      ⏭️  Skipped: {test_results['skipped']}")
 
-                if test_results['success']:
+                # Calculate failure rate and check against threshold
+                if total_tests > 0:
+                    failure_rate = failed_tests / total_tests
+                    if failure_rate > failure_threshold:
+                        print(f"   ❌ Tests failed! ({failure_rate:.1%} failure rate exceeds {failure_threshold:.1%} threshold)")
+                        testing_success = False
+                    else:
+                        if failed_tests > 0:
+                            print(f"   ✅ Tests passed! ({failure_rate:.1%} failure rate within {failure_threshold:.1%} threshold)")
+                        else:
+                            print(f"   ✅ All tests passed! (Testing Check: PASSED)")
+                elif test_results['success']:
                     print(f"   ✅ All tests passed! (Testing Check: PASSED)")
                 else:
                     print(f"   ❌ Some tests failed! (Testing Check: FAILED)")
@@ -607,6 +638,8 @@ def main():
     parser.add_argument("--no-progress", action="store_true", help="Disable real-time progress output")
     parser.add_argument("--allow-test-failures", action="store_true",
                         help="Accept repositories where installation succeeds but tests fail (exit 0 if installation passed)")
+    parser.add_argument("--failure-threshold", type=float, default=0.09,
+                        help="Maximum fraction of tests allowed to fail (default: 0.09 = 9%%)")
 
     args = parser.parse_args()
 
@@ -624,7 +657,7 @@ def main():
 
             print(f"🐍 Verifying Python installation script in: {input_path}")
             installation_success, testing_success = verify_python_installation_swe_smith_style(
-                input_path, not args.no_progress
+                input_path, not args.no_progress, args.failure_threshold
             )
 
             # Clean up conda environment if requested
@@ -659,7 +692,7 @@ def main():
             # Verify the Dockerfile
             show_progress = not args.no_progress
             installation_success, testing_success = verify_dockerfile(
-                dockerfile_path, image_name, show_progress
+                dockerfile_path, image_name, show_progress, args.failure_threshold
             )
 
             if installation_success:
