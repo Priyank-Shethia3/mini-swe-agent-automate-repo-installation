@@ -684,7 +684,8 @@ class {class_name}({base_class}):
 
 
 def run_pipeline(repo_name: str, is_python_repo: bool, model_name: str = "claude-sonnet-4-20250514",
-                 livestream: bool = False, verify: bool = False, max_cost: float = 2.0, max_time: int = 1200) -> Dict[str, Any]:
+                 livestream: bool = False, verify: bool = False, verify_testing: bool = False, 
+                 max_cost: float = 2.0, max_time: int = 1200) -> Dict[str, Any]:
     """Run the complete 3-stage pipeline with full output capture."""
     owner, repo = validate_repo_name(repo_name)
     result_dir = Path("agent-result") / f"{owner}-{repo}"
@@ -723,8 +724,10 @@ def run_pipeline(repo_name: str, is_python_repo: bool, model_name: str = "claude
         ]
         if is_python_repo:
             stage1_cmd.append("--python-repo")
-        if verify:
+        if verify or verify_testing:
             stage1_cmd.append("--verify")
+        if verify_testing:
+            stage1_cmd.append("--verify-testing")
 
         exit_code, output = run_pipeline_command(
             stage1_cmd,
@@ -956,6 +959,11 @@ def main():
         help="Instruct the agent to verify the generated Dockerfile by building it (passed to simple_repo_to_dockerfile.py)"
     )
     parser.add_argument(
+        "--verify-testing",
+        action="store_true",
+        help="Instruct the agent to also run verify_testing.py to parse test output (implies --verify, passed to simple_repo_to_dockerfile.py)"
+    )
+    parser.add_argument(
         "--max-cost",
         type=float,
         default=2.0,
@@ -975,8 +983,8 @@ def main():
         owner, repo = validate_repo_name(args.repo_name)
 
         # Run the complete pipeline
-        pipeline_results = run_pipeline(args.repo_name, args.python_repo, args.model, args.livestream, args.verify, 
-                                       args.max_cost, args.max_time)
+        pipeline_results = run_pipeline(args.repo_name, args.python_repo, args.model, args.livestream, args.verify,
+                                       args.verify_testing, args.max_cost, args.max_time)
 
         # Generate profile
         profile_code = generate_profile_from_pipeline(pipeline_results, args.python_repo)
