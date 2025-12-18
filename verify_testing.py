@@ -27,6 +27,7 @@ from log_parser.parsers.gradle import parse_log_gradle
 from log_parser.parsers.junit import parse_log_junit
 from log_parser.parsers.lodash_custom import parse_log_lodash_custom
 from log_parser.parsers.karma import parse_log_karma
+from log_parser.parsers.cspell import parse_log_cspell
 
 
 # Parser registry
@@ -42,11 +43,12 @@ PARSERS = {
     'lodash_custom': parse_log_lodash_custom,
     'karma': parse_log_karma,
     'jasmine': parse_log_karma,  # Jasmine uses Karma runner
+    'cspell': parse_log_cspell,
 }
 
 # Language to framework mappings
 LANGUAGE_FRAMEWORKS = {
-    'javascript': ['jest', 'mocha', 'karma', 'jasmine'],
+    'javascript': ['jest', 'mocha', 'karma', 'jasmine', 'cspell'],
     'python': ['pytest'],
     'go': ['go_test'],
     'rust': ['cargo'],

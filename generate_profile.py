@@ -747,7 +747,9 @@ def run_pipeline(repo_name: str, is_python_repo: bool, model_name: str = "claude
         stage2_cmd = ["python", str(script_dir / "verify_dockerfile.py"), str(result_dir)]
         if is_python_repo:
             stage2_cmd.append("--python-repo")
-        stage2_cmd.append("--cleanup")
+        # Only cleanup if we're not doing test parsing (which needs test_output.txt)
+        if not verify_testing:
+            stage2_cmd.append("--cleanup")
 
         exit_code, output = run_pipeline_command(
             stage2_cmd,

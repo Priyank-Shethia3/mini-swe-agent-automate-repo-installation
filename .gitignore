@@ -4,6 +4,7 @@ __pycache__/
 CLAUDE.md
 agent-result/
 agent-result_arch/
+agent-result-archive/
 github_repo_scraper/*.json
 github_repo_scraper/*/
 .env

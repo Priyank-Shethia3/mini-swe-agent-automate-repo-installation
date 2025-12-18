@@ -55,7 +55,7 @@ agent:
        - test_framework: The detected test framework (e.g., "jest", "mocha", "pytest", "go_test", "cargo", "maven", "gradle", "junit")
           - If unable to determine the test framework, set it to "unknown"
        - commit_hash: Latest commit hash from the repository
-    9. **VERIFY THE DOCKERFILE**: Run `python verify_dockerfile.py agent-result/$repo_folder_name/Dockerfile --cleanup` to test if the Dockerfile builds successfully and tests run properly
+    9. **VERIFY THE DOCKERFILE**: Run `python verify_dockerfile.py agent-result/$repo_folder_name/Dockerfile` to test if the Dockerfile builds successfully and tests run properly
     10. **IF VERIFICATION FAILS**: 
         - Analyze the error output carefully
         - Common issues:
@@ -153,7 +153,7 @@ agent:
     ### Verify Dockerfile builds successfully:
 
     ```bash
-    python verify_dockerfile.py agent-result/expressjs-express/Dockerfile --cleanup
+    python verify_dockerfile.py agent-result/expressjs-express/Dockerfile
     ```
 
     ### Fix Dockerfile if verification fails:

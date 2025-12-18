@@ -259,6 +259,8 @@ Use the full paths shown above when calling these scripts.
             helper_scripts_section += f"""
 ## IMPORTANT: Test Output Parsing Required
 
+**IF THE REPOSITORY HAS TESTS:**
+
 After running `verify_dockerfile.py` successfully, you MUST also run `verify_testing.py` to parse the test output:
 
 ```bash
@@ -272,33 +274,27 @@ The `verify_testing.py` script will:
 
 **Your task is not complete until `verify_testing.py` runs successfully and generates `parsed_test_status.json`.**
 
-If `verify_testing.py` fails to parse the test output:
-- Check if the `test_framework` in `repo_metadata.json` is correct
-- Review the test output format in `test_output.txt`
-- You may need to update the `test_framework` field to match the actual framework being used
-- Common frameworks: jest, mocha, karma, jasmine (JavaScript), pytest (Python), maven, gradle (Java), cargo (Rust), go_test (Go)
+**If `verify_testing.py` fails:**
 
-**Creating or Updating Parsers (if GENUINELY required):**
+Check `test_output.txt` to see if tests actually ran:
+- **Tests ran successfully but parsing failed**: Create/update a parser (see options below)
+- **No tests exist**: Mark as no-tests repo (see below)
 
-If no existing parser can handle the test output format, you may create a new parser or update an existing one:
+**Creating/Updating Parsers (if tests ran but couldn't be parsed):**
 
-⚠️  **CRITICAL: DO NOT MAKE BREAKING CHANGES TO EXISTING PARSERS**
-- Existing parsers (jest, mocha, pytest, etc.) are used by multiple repositories
-- DO NOT modify them in ways that might break parsing for other repos
-- **Safe enhancements**: You may make parsers MORE robust (e.g., handle additional output formats without breaking existing ones)
-- **Breaking changes**: DO NOT remove or change existing parsing logic
-- **Best practice**: If you need repo-specific parsing logic, CREATE A CUSTOM PARSER instead (e.g., lodash_custom.py, repo_name_custom.py)
-- **Last resort**: If the required changes would definitely break other repos, SKIP this repository rather than breaking the pipeline
+Choose the appropriate approach:
+1. **Add framework parser** (e.g., `cspell.py`): For known frameworks we don't support
+2. **Enhance existing parser**: Add patterns to existing parser (only if safe)
+3. **Custom parser** (e.g., `graphql_spec_custom.py`): For unique test formats
 
-1. **Parser location**: `{script_dir}/log_parser/parsers/`
-2. **Existing parsers**: jest.py, mocha.py, karma.py, pytest.py, maven.py, gradle.py, cargo.py, go_test.py, lodash_custom.py
-3. **Parser structure**: Each parser should have a function like `parse_log_<framework>(log: str) -> dict[str, str]` that returns a dictionary mapping test names to status ("PASSED", "FAILED", "SKIPPED")
-4. **Register the parser**: After creating a new parser, update `verify_testing.py` to import and register it in the `PARSERS` dictionary
-5. **Use custom parsers for edge cases**: If a repo has unique test output, create a custom parser (e.g., `<repo_name>_custom.py`) and set `test_framework: "custom"` in repo_metadata.json
+Requirements:
+- Location: `{script_dir}/log_parser/parsers/`
+- Signature: `parse_log_<name>(log: str) -> dict[str, str]`
+- Register in `verify_testing.py`: Add to PARSERS dict and import
+- **Never break existing parsers** - if unsure, make a custom one
 
-Example parser structure:
+Example:
 ```python
-import re
 from enum import Enum
 
 class TestStatus(Enum):
@@ -306,18 +302,19 @@ class TestStatus(Enum):
     FAILED = "FAILED"
     SKIPPED = "SKIPPED"
 
-def parse_log_<framework>(log: str) -> dict[str, str]:
-    test_status_map = {{}}
-    # Parse test output and populate test_status_map
-    # Example: test_status_map["test_name"] = TestStatus.PASSED.value
-    return test_status_map
+def parse_log_<name>(log: str) -> dict[str, str]:
+    # Parse logic based on test_output.txt format
+    return {{"test_name": TestStatus.PASSED.value}}
 ```
 
-**Important**: 
-- Only create/update parsers if existing ones genuinely cannot parse the output. Try all existing parsers first.
-- **DO NOT modify existing parsers** (jest, mocha, pytest, etc.) if it would break other repos
-- **Prefer custom parsers** for edge cases (e.g., `repo_name_custom.py`)
-- **When to skip**: If test parsing genuinely cannot be made to work without breaking changes to shared parsers, it's better to skip this repo
+**Repos with NO tests (rare):**
+
+Only mark as no-tests if ALL true:
+- No test scripts in package.json/setup.py/etc.
+- No test files or directories
+- Running test command shows "no tests found"
+
+Then: Set `test_commands: []` and `test_framework: "none"`, skip `verify_testing.py`
 
 """
         
