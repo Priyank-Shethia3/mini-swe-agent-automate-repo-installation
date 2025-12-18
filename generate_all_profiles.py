@@ -2,6 +2,7 @@ import csv
 import subprocess
 import os
 import sys
+import json
 import argparse
 
 def main():
@@ -54,6 +55,7 @@ def main():
         'dockerfile_generated': 0,
         'dockerfile_verified': 0,
         'testing_verified': 0,
+        'no_tests': 0,
         'failed': 0,
         'timeout': 0
     }
@@ -124,6 +126,21 @@ def main():
             dockerfile_path = os.path.join(result_dir, 'Dockerfile')
             test_output_path = os.path.join(result_dir, 'test_output.txt')
             parsed_status_path = os.path.join(result_dir, 'parsed_test_status.json')
+            metadata_path = os.path.join(result_dir, 'repo_metadata.json')
+            
+            # Check if repo has no tests
+            has_no_tests = False
+            if os.path.exists(metadata_path):
+                try:
+                    with open(metadata_path, 'r', encoding='utf-8') as f:
+                        metadata = json.load(f)
+                        test_commands = metadata.get('test_commands', [])
+                        test_framework = metadata.get('test_framework', '')
+                        if (not test_commands or test_commands == []) and (test_framework == 'none' or not test_framework):
+                            has_no_tests = True
+                            stats['no_tests'] += 1
+                except Exception:
+                    pass
             
             if os.path.exists(dockerfile_path):
                 stats['dockerfile_generated'] += 1
@@ -141,6 +158,7 @@ def main():
         print(f"   Dockerfile generated: {stats['dockerfile_generated']}")
         print(f"   Dockerfile verified:  {stats['dockerfile_verified']}")
         print(f"   Testing verified:     {stats['testing_verified']}")
+        print(f"   No tests found:       {stats['no_tests']}")
         print(f"   Failed:               {stats['failed']}")
         print(f"   Timeout:              {stats['timeout']}")
         
@@ -164,6 +182,7 @@ def main():
     print(f"  ✅ Dockerfile generated:    {stats['dockerfile_generated']}")
     print(f"  ✅ Dockerfile verified:     {stats['dockerfile_verified']}")
     print(f"  ✅ Testing verified:        {stats['testing_verified']}")
+    print(f"  📝 No tests found:          {stats['no_tests']}")
     print(f"  ❌ Failed:                  {stats['failed']}")
     print(f"  ⏰ Timeout:                 {stats['timeout']}")
     
