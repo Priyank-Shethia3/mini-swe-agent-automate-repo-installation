@@ -2,6 +2,24 @@
 
 A sophisticated 3-stage automated pipeline that converts GitHub repositories into SWE-smith compatible profile classes using mini-swe-agent for repository analysis and intelligent test framework detection.
 
+## 🚀 JS quick start
+
+Generate repo profiles with:
+```
+tmux new -s profiles "uv run generate_all_profiles.py --range 0-50"
+```
+Adjust --range to run different subsets.
+
+To run with Gemini-3.0-flash, upgrade the LiteLLM dependency to the latest version:
+```
+uv pip install "git+https://github.com/BerriAI/litellm.git@v1.80.10.rc.4"
+```
+
+After the generation finishes, break down the success rate, cost, and duration with:
+```
+uv run analyze_results.py
+```
+
 ## 🚀 Quick Start
 
 **Full automated pipeline (recommended):**
