@@ -30,22 +30,25 @@ def parse_log_mocha(log: str) -> dict[str, str]:
     for line in log.split("\n"):
         line = line.strip()
         
+        # Strip ANSI color codes
+        cleaned_line = re.sub(r'\x1b\[[0-9;]*m', '', line)
+        
         # Passing tests (support both ✓ and ✔ checkmarks)
-        pass_match = re.match(r"^\s*[✓✔]\s+(.+?)(?:\s+\((\d+\s*m?s)\))?$", line)
+        pass_match = re.match(r"^\s*[✓✔]\s+(.+?)(?:\s+\((\d+\s*m?s)\))?$", cleaned_line)
         if pass_match:
             test_name = pass_match.group(1).strip()
             test_status_map[test_name] = TestStatus.PASSED.value
             continue
             
         # Failing tests - pattern like "1) test name"
-        fail_match = re.match(r"^\s*\d+\)\s+(.+)$", line)
+        fail_match = re.match(r"^\s*\d+\)\s+(.+)$", cleaned_line)
         if fail_match:
             test_name = fail_match.group(1).strip()
             test_status_map[test_name] = TestStatus.FAILED.value
             continue
             
         # Skipped tests
-        skip_match = re.match(r"^\s*-\s+(.+)$", line)
+        skip_match = re.match(r"^\s*-\s+(.+)$", cleaned_line)
         if skip_match:
             test_name = skip_match.group(1).strip()
             test_status_map[test_name] = TestStatus.SKIPPED.value

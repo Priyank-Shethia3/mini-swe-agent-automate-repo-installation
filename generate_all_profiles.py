@@ -96,7 +96,11 @@ def main():
             # allowing us to handle it ourselves or simply move on.
             result = subprocess.run(cmd, check=False, timeout=1500)
             
-            if result.returncode != 0:
+            if result.returncode == 124:
+                # Exit code 124 indicates agent timeout (from simple_repo_to_dockerfile.py)
+                print(f"⏰ Agent timeout: {full_name} exceeded max-time limit")
+                stats['timeout'] += 1
+            elif result.returncode != 0:
                 print(f"⚠️  Command for {full_name} returned non-zero exit code: {result.returncode}")
                 stats['failed'] += 1
             else:

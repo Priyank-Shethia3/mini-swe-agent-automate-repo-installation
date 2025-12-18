@@ -61,7 +61,7 @@ agent:
         - Common issues:
           * Base image not found
           * Wrong package manager for the base OS
-          * Missing system dependencies
+          * Missing system dependencies (git, python, build tools, etc.)
           * Incorrect syntax
           * Multi-module Maven projects with failing modules (consider using `-pl <module>` to build only working modules)
         - Fix the Dockerfile and/or repo_metadata.json, then verify again

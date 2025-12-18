@@ -274,6 +274,8 @@ The `verify_testing.py` script will:
 
 **Your task is not complete until `verify_testing.py` runs successfully and generates `parsed_test_status.json`.**
 
+After parsing succeeds, verify completeness by checking `test_output.txt` for test counts (e.g., "123 tests", "45 passing") and comparing with parsed count. If significantly different, the parser may be incomplete - update it.
+
 **If `verify_testing.py` fails:**
 
 Check `test_output.txt` to see if tests actually ran:
@@ -396,7 +398,7 @@ Then: Set `test_commands: []` and `test_framework: "none"`, skip `verify_testing
         
         if timeout_occurred:
             print(f"❌ Agent timed out - Dockerfile generation incomplete")
-            sys.exit(1)
+            sys.exit(124)  # Exit code 124 indicates timeout (standard Unix convention)
 
         if is_python_repo:
             # Check for conda installation script
