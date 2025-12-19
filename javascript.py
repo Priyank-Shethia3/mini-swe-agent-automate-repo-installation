@@ -89,31 +89,6 @@ CMD ["/bin/bash"]"""
 
 
 @dataclass
-class Mithriljsc50e6be4(JavaScriptProfile):
-    owner: str = "MithrilJS"
-    repo: str = "mithril.js"
-    commit: str = "c50e6be451bcb396e3324dc9a98d6f37db93bd0c"
-    test_cmd: str = "npm test"
-
-    @property
-    def dockerfile(self):
-        return f"""FROM node:18-slim
-
-RUN apt-get update && apt-get install -y git && rm -rf /var/lib/apt/lists/*
-
-RUN git clone --depth 1 --recurse-submodules --shallow-submodules https://github.com/{self.owner}/{self.repo}.git /testbed
-WORKDIR /testbed
-RUN npm install
-
-CMD ["/bin/bash"]"""
-
-    def log_parser(self, log: str) -> dict[str, str]:
-        return parse_log_mocha(log)  # Default fallback
-
-
-
-
-@dataclass
 class Modernizr1d4c9cee(JavaScriptProfile):
     owner: str = "Modernizr"
     repo: str = "Modernizr"
@@ -149,7 +124,7 @@ RUN npm install
 CMD ["/bin/bash"]"""
 
     def log_parser(self, log: str) -> dict[str, str]:
-        return parse_log_mocha(log)  # Default fallback
+        return parse_log_mocha(log)
 
 
 
@@ -176,7 +151,7 @@ RUN npm install --legacy-peer-deps
 CMD ["/bin/bash"]"""
 
     def log_parser(self, log: str) -> dict[str, str]:
-        return parse_log_mocha(log)  # Default fallback
+        return parse_log_jest(log)
 
 
 
@@ -267,15 +242,15 @@ RUN npm install
 CMD ["/bin/bash"]"""
 
     def log_parser(self, log: str) -> dict[str, str]:
-        return parse_log_mocha(log)  # Default fallback
+        return parse_log_jest(log)
 
 
 
 
 @dataclass
-class Bootstrapvue9a246f45(JavaScriptProfile):
-    owner: str = "bootstrap-vue"
-    repo: str = "bootstrap-vue"
+class Vuebootstrapvue9a246f45(JavaScriptProfile):
+    owner: str = "bootstrap"
+    repo: str = "vue-bootstrap-vue"
     commit: str = "9a246f45fc813f161df291fc7d6197febf8afaf4"
     test_cmd: str = "yarn jest --verbose"
 
@@ -294,7 +269,7 @@ RUN yarn install --frozen-lockfile
 CMD ["/bin/bash"]"""
 
     def log_parser(self, log: str) -> dict[str, str]:
-        return parse_log_mocha(log)  # Default fallback
+        return parse_log_jest(log)
 
 
 
@@ -359,40 +334,15 @@ RUN npm install && \
 CMD ["/bin/bash"]"""
 
     def log_parser(self, log: str) -> dict[str, str]:
-        return parse_log_mocha(log)  # Default fallback
+        return parse_log_jest(log)
 
 
 
 
 @dataclass
-class PhotoSwipecd41cb58(JavaScriptProfile):
-    owner: str = "dimsemenov"
-    repo: str = "PhotoSwipe"
-    commit: str = "cd41cb587a460634e4cae53134f3d01d06e284a6"
-    test_cmd: str = "npm test -- --verbose"
-
-    @property
-    def dockerfile(self):
-        return f"""FROM node:18-slim
-
-RUN apt-get update && apt-get install -y git && rm -rf /var/lib/apt/lists/*
-
-RUN git clone --depth 1 https://github.com/{self.owner}/{self.repo}.git /testbed
-WORKDIR /testbed
-RUN npm install
-
-CMD ["/bin/bash"]"""
-
-    def log_parser(self, log: str) -> dict[str, str]:
-        return parse_log_mocha(log)  # Default fallback
-
-
-
-
-@dataclass
-class Emotionb882bcba(JavaScriptProfile):
-    owner: str = "emotion-js"
-    repo: str = "emotion"
+class Jsemotionb882bcba(JavaScriptProfile):
+    owner: str = "emotion"
+    repo: str = "js-emotion"
     commit: str = "b882bcba85132554992e4bd49e94c95939bbf810"
     test_cmd: str = "yarn jest --verbose"
 
@@ -413,7 +363,7 @@ RUN yarn install
 CMD ["/bin/bash"]"""
 
     def log_parser(self, log: str) -> dict[str, str]:
-        return parse_log_mocha(log)  # Default fallback
+        return parse_log_jest(log)
 
 
 
@@ -446,7 +396,7 @@ RUN npm install
 CMD ["/bin/bash"]"""
 
     def log_parser(self, log: str) -> dict[str, str]:
-        return parse_log_mocha(log)  # Default fallback
+        return parse_log_jest(log)
 
 
 
@@ -473,7 +423,7 @@ RUN yarn install
 CMD ["/bin/bash"]"""
 
     def log_parser(self, log: str) -> dict[str, str]:
-        return parse_log_mocha(log)  # Default fallback
+        return parse_log_jest(log)
 
 
 
@@ -529,7 +479,7 @@ RUN npm run build
 CMD ["/bin/bash"]"""
 
     def log_parser(self, log: str) -> dict[str, str]:
-        return parse_log_mocha(log)  # Default fallback
+        return parse_log_jest(log)
 
 
 
@@ -554,57 +504,6 @@ CMD ["npm", "test"]"""
 
     def log_parser(self, log: str) -> dict[str, str]:
         return parse_log_mocha(log)
-
-
-
-
-@dataclass
-class Framework7639f623f(JavaScriptProfile):
-    owner: str = "framework7io"
-    repo: str = "framework7"
-    commit: str = "639f623fd96ea0070953dddde13fd524fa53fcaa"
-    test_cmd: str = "npm run lint"
-
-    @property
-    def dockerfile(self):
-        return f"""FROM node:20-slim
-
-RUN apt-get update && apt-get install -y git python3 build-essential && rm -rf /var/lib/apt/lists/*
-
-
-RUN git clone --depth 1 --recurse-submodules --shallow-submodules https://github.com/{self.owner}/{self.repo}.git /testbed
-WORKDIR /testbed
-
-RUN npm install
-
-CMD ["/bin/bash"]"""
-
-    def log_parser(self, log: str) -> dict[str, str]:
-        return parse_log_mocha(log)  # Default fallback
-
-
-
-
-@dataclass
-class Graphqlspec9c0442b9(JavaScriptProfile):
-    owner: str = "graphql"
-    repo: str = "graphql-spec"
-    commit: str = "9c0442b9ba1f3d7e743f31f79e04538a33a9a1a3"
-    test_cmd: str = "npm test"
-
-    @property
-    def dockerfile(self):
-        return f"""FROM node:18-slim
-
-RUN apt-get update && apt-get install -y git && rm -rf /var/lib/apt/lists/*
-
-RUN git clone https://github.com/{self.owner}/{self.repo}.git /testbed
-WORKDIR /testbed
-RUN npm install
-CMD ["/bin/bash"]"""
-
-    def log_parser(self, log: str) -> dict[str, str]:
-        return parse_log_mocha(log)  # Default fallback
 
 
 
@@ -705,7 +604,7 @@ RUN pnpm install && pnpm run build
 CMD ["/bin/bash"]"""
 
     def log_parser(self, log: str) -> dict[str, str]:
-        return parse_log_mocha(log)  # Default fallback
+        return parse_log_jest(log)
 
 
 
@@ -787,7 +686,7 @@ COPY karma.conf.js /testbed/karma.conf.js
 CMD ["/bin/bash"]"""
 
     def log_parser(self, log: str) -> dict[str, str]:
-        return parse_log_mocha(log)  # Default fallback
+        return parse_log_jasmine(log)
 
 
 
@@ -815,7 +714,7 @@ RUN npm install --legacy-peer-deps
 CMD ["/bin/bash"]"""
 
     def log_parser(self, log: str) -> dict[str, str]:
-        return parse_log_mocha(log)  # Default fallback
+        return parse_log_jest(log)
 
 
 
@@ -842,7 +741,7 @@ WORKDIR /testbed
 RUN npm install && npm install karma-chrome-launcher --save-dev
 
 # Add ChromeHeadlessNoSandbox launcher to karma.conf.js
-RUN sed -i "s/customLaunchers: {/customLaunchers: {\n        ChromeHeadlessNoSandbox: {\n            base: 'ChromeHeadless',\n            flags: ['--no-sandbox']\n        },/" karma.conf.js
+RUN sed -i "s/customLaunchers: {{/customLaunchers: {{\\n        ChromeHeadlessNoSandbox: {{\\n            base: 'ChromeHeadless',\\n            flags: ['--no-sandbox']\\n        }},/" karma.conf.js
 
 # Build debug-info.js which is required by tests
 RUN npm run build-debug
@@ -850,7 +749,7 @@ RUN npm run build-debug
 CMD ["/bin/bash"]"""
 
     def log_parser(self, log: str) -> dict[str, str]:
-        return parse_log_mocha(log)  # Default fallback
+        return parse_log_jasmine(log)
 
 
 
@@ -874,7 +773,7 @@ RUN npm install
 CMD ["/bin/bash"]"""
 
     def log_parser(self, log: str) -> dict[str, str]:
-        return parse_log_mocha(log)  # Default fallback
+        return parse_log_jest(log)
 
 
 
@@ -902,33 +801,6 @@ CMD ["/bin/bash"]"""
 
     def log_parser(self, log: str) -> dict[str, str]:
         return parse_log_mocha(log)
-
-
-
-
-@dataclass
-class Jqueryvalidation4a25a8ff(JavaScriptProfile):
-    owner: str = "jquery-validation"
-    repo: str = "jquery-validation"
-    commit: str = "4a25a8ff62965aec8221016b8f47873c1833596e"
-    test_cmd: str = "grunt --verbose --force"
-
-    @property
-    def dockerfile(self):
-        return f"""FROM node:18-slim
-
-RUN apt-get update && apt-get install -y git libgbm1 libasound2 libatk1.0-0 libc6 libcairo2 libcups2 libdbus-1-3 libexpat1 libfontconfig1 libgcc1 libgconf-2-4 libgdk-pixbuf2.0-0 libglib2.0-0 libgtk-3-0 libnspr4 libpango-1.0-0 libpangocairo-1.0-0 libstdc++6 libx11-6 libx11-xcb1 libxcb1 libxcomposite1 libxcursor1 libxdamage1 libxext6 libxfixes3 libxi6 libxrandr2 libxrender1 libxss1 libxtst6 ca-certificates fonts-liberation libappindicator1 libnss3 lsb-release xdg-utils wget && rm -rf /var/lib/apt/lists/*
-
-RUN git clone --depth 1 --recurse-submodules --shallow-submodules https://github.com/{self.owner}/{self.repo}.git /testbed
-WORKDIR /testbed
-RUN npm install --ignore-scripts && npm install -g grunt-cli && npx puppeteer browsers install chrome
-
-COPY Gruntfile.js ./Gruntfile.js
-
-CMD ["/bin/bash"]"""
-
-    def log_parser(self, log: str) -> dict[str, str]:
-        return parse_log_mocha(log)  # Default fallback
 
 
 
@@ -973,9 +845,9 @@ CMD ["npm", "start"]"""
 
 
 @dataclass
-class Marko24b9402c(JavaScriptProfile):
-    owner: str = "marko-js"
-    repo: str = "marko"
+class Jsmarko24b9402c(JavaScriptProfile):
+    owner: str = "marko"
+    repo: str = "js-marko"
     commit: str = "24b9402cd54c3a74f200da0f79dd19350995a9ba"
     test_cmd: str = "env MARKO_DEBUG=1 ./node_modules/.bin/mocha --reporter spec"
 
@@ -1000,9 +872,9 @@ CMD ["/bin/bash"]"""
 
 
 @dataclass
-class Mdx00046053(JavaScriptProfile):
-    owner: str = "mdx-js"
-    repo: str = "mdx"
+class Jsmdx00046053(JavaScriptProfile):
+    owner: str = "mdx"
+    repo: str = "js-mdx"
     commit: str = "000460532e6a558693cbe73c2ffdb8d6c098a07b"
     test_cmd: str = "npm run test-api --workspaces --if-present"
 
@@ -1052,7 +924,7 @@ RUN sed -i "s/'-f'/'-a', '[\"--no-sandbox\"]', '-f'/" tests/test.js
 CMD ["/bin/bash"]"""
 
     def log_parser(self, log: str) -> dict[str, str]:
-        return parse_log_mocha(log)  # Default fallback
+        return parse_log_jest(log)
 
 
 
@@ -1081,7 +953,7 @@ RUN pnpm install
 CMD ["/bin/bash"]"""
 
     def log_parser(self, log: str) -> dict[str, str]:
-        return parse_log_mocha(log)  # Default fallback
+        return parse_log_vitest(log)
 
 
 
@@ -1108,7 +980,7 @@ RUN npm install --ignore-scripts
 CMD ["/bin/bash"]"""
 
     def log_parser(self, log: str) -> dict[str, str]:
-        return parse_log_mocha(log)  # Default fallback
+        return parse_log_mocha(log)
 
 
 
@@ -1133,7 +1005,7 @@ RUN npm install
 CMD ["/bin/bash"]"""
 
     def log_parser(self, log: str) -> dict[str, str]:
-        return parse_log_mocha(log)  # Default fallback
+        return parse_log_jest(log)
 
 
 
@@ -1242,83 +1114,12 @@ RUN npm install
 
 # Inject custom launcher into karma.conf.js
 RUN sed -i "s/browsers: \['Chrome'\]/browsers: ['ChromeHeadlessNoSandbox']/" test/unit/karma.conf.js && \
-    sed -i "/reporters: \[/i \ \ \ \ customLaunchers: {\n      ChromeHeadlessNoSandbox: {\n        base: 'ChromeHeadless',\n        flags: ['--no-sandbox', '--disable-setuid-sandbox']\n      }\n    }," test/unit/karma.conf.js
+    sed -i "/reporters: \[/i \ \ \ \ customLaunchers: {{\\n      ChromeHeadlessNoSandbox: {{\\n        base: 'ChromeHeadless',\\n        flags: ['--no-sandbox', '--disable-setuid-sandbox']\\n      }}\\n    }}," test/unit/karma.conf.js
 
 CMD ["/bin/bash"]"""
 
     def log_parser(self, log: str) -> dict[str, str]:
         return parse_log_mocha(log)
-
-
-
-
-@dataclass
-class Phaser631252bc(JavaScriptProfile):
-    owner: str = "phaserjs"
-    repo: str = "phaser"
-    commit: str = "631252bc05193910c0e5a872655848f88839077b"
-    test_cmd: str = "npm run tsgen"
-
-    @property
-    def dockerfile(self):
-        return f"""FROM node:18-slim
-
-RUN apt-get update && apt-get install -y git && rm -rf /var/lib/apt/lists/*
-
-
-RUN git clone --depth 1 --recurse-submodules --shallow-submodules https://github.com/{self.owner}/{self.repo}.git /testbed
-WORKDIR /testbed
-
-RUN npm install
-
-CMD ["/bin/bash"]"""
-
-    def log_parser(self, log: str) -> dict[str, str]:
-        return parse_log_mocha(log)  # Default fallback
-
-
-
-
-@dataclass
-class Plotlyjs73aeab63(JavaScriptProfile):
-    owner: str = "plotly"
-    repo: str = "plotly.js"
-    commit: str = "73aeab635e39fdf50b70503d35378e7f2dbc2451"
-    test_cmd: str = "npm run test-syntax -- --verbose"
-
-    @property
-    def dockerfile(self):
-        return f"""FROM node:18-slim
-
-# Install system dependencies
-RUN apt-get update && apt-get install -y \
-    git \
-    python3 \
-    make \
-    g++ \
-    pkg-config \
-    libpango1.0-dev \
-    libcairo2-dev \
-    libjpeg-dev \
-    libgif-dev \
-    librsvg2-dev \
-    && rm -rf /var/lib/apt/lists/*
-
-
-# Clone the repository
-RUN git clone --depth 1 --recurse-submodules --shallow-submodules https://github.com/{self.owner}/{self.repo}.git /testbed
-WORKDIR /testbed
-
-# Install dependencies
-RUN npm install
-
-# Build the project
-RUN npm run build
-
-CMD ["/bin/bash"]"""
-
-    def log_parser(self, log: str) -> dict[str, str]:
-        return parse_log_mocha(log)  # Default fallback
 
 
 
@@ -1343,7 +1144,7 @@ RUN npm install
 CMD ["/bin/bash"]"""
 
     def log_parser(self, log: str) -> dict[str, str]:
-        return parse_log_mocha(log)  # Default fallback
+        return parse_log_jest(log)
 
 
 
@@ -1368,7 +1169,7 @@ RUN npm install --legacy-peer-deps
 CMD ["/bin/bash"]"""
 
     def log_parser(self, log: str) -> dict[str, str]:
-        return parse_log_mocha(log)  # Default fallback
+        return parse_log_jest(log)
 
 
 
@@ -1419,7 +1220,7 @@ RUN npm install
 CMD ["/bin/bash"]"""
 
     def log_parser(self, log: str) -> dict[str, str]:
-        return parse_log_mocha(log)  # Default fallback
+        return parse_log_jest(log)
 
 
 
@@ -1446,7 +1247,7 @@ RUN yarn install --frozen-lockfile
 CMD ["/bin/bash"]"""
 
     def log_parser(self, log: str) -> dict[str, str]:
-        return parse_log_mocha(log)  # Default fallback
+        return parse_log_jest(log)
 
 
 
@@ -1476,9 +1277,9 @@ CMD ["/bin/bash"]"""
 
 
 @dataclass
-class Sqljs52e5649f(JavaScriptProfile):
-    owner: str = "sql-js"
-    repo: str = "sql.js"
+class Jssqljs52e5649f(JavaScriptProfile):
+    owner: str = "sql"
+    repo: str = "js-sql.js"
     commit: str = "52e5649f3a3a2a46aa4ad58a79d118c22f56cf30"
     test_cmd: str = "npm test"
 
@@ -1499,58 +1300,6 @@ CMD ["/bin/bash"]"""
 
     def log_parser(self, log: str) -> dict[str, str]:
         return parse_log_mocha(log)
-
-
-
-
-@dataclass
-class Live2dwidgetfa963c63(JavaScriptProfile):
-    owner: str = "stevenjoezhang"
-    repo: str = "live2d-widget"
-    commit: str = "fa963c6313774603c7a07b57f3dc9f2cebdd9590"
-    test_cmd: str = "npm run eslint"
-
-    @property
-    def dockerfile(self):
-        return f"""FROM node:18-slim
-
-RUN apt-get update && apt-get install -y git && rm -rf /var/lib/apt/lists/*
-
-RUN git clone --depth 1 --recurse-submodules --shallow-submodules https://github.com/{self.owner}/{self.repo}.git /testbed
-WORKDIR /testbed
-RUN npm install
-
-CMD ["/bin/bash"]"""
-
-    def log_parser(self, log: str) -> dict[str, str]:
-        return parse_log_mocha(log)  # Default fallback
-
-
-
-
-@dataclass
-class Bootswatch149996dd(JavaScriptProfile):
-    owner: str = "thomaspark"
-    repo: str = "bootswatch"
-    commit: str = "149996ddaa93db10c6fc05145e3ab98872718c5b"
-    test_cmd: str = "npm test -- --verbose"
-
-    @property
-    def dockerfile(self):
-        return f"""FROM node:18-slim
-
-RUN apt-get update && apt-get install -y git && rm -rf /var/lib/apt/lists/*
-
-
-RUN git clone https://github.com/{self.owner}/{self.repo}.git /testbed
-WORKDIR /testbed
-
-RUN npm install
-
-CMD ["/bin/bash"]"""
-
-    def log_parser(self, log: str) -> dict[str, str]:
-        return parse_log_mocha(log)  # Default fallback
 
 
 
@@ -1601,7 +1350,7 @@ RUN yarn install && yarn setup
 CMD ["/bin/bash"]"""
 
     def log_parser(self, log: str) -> dict[str, str]:
-        return parse_log_mocha(log)  # Default fallback
+        return parse_log_jest(log)
 
 
 
@@ -1628,7 +1377,7 @@ RUN npm install
 CMD ["/bin/bash"]"""
 
     def log_parser(self, log: str) -> dict[str, str]:
-        return parse_log_mocha(log)  # Default fallback
+        return parse_log_jest(log)
 
 
 

@@ -2,7 +2,6 @@ import csv
 import subprocess
 import os
 import sys
-import json
 import argparse
 
 def main():
@@ -17,8 +16,6 @@ def main():
     parser.add_argument('--verify', action='store_true', help='Instruct the agent to verify generated Dockerfiles by building them.')
     parser.add_argument('--verify-testing', action='store_true', help='Instruct the agent to also run verify_testing.py to parse test output (implies --verify).')
     parser.add_argument('--livestream', action='store_true', help='Enable real-time output streaming from the agent.')
-    parser.add_argument('--max-time', type=int, default=1200, help='Maximum time in seconds for agent execution per repo (default: 1200 = 20 minutes)')
-    parser.add_argument('--failure-threshold', type=float, default=0.09, help='Maximum fraction of tests allowed to fail (default: 0.09 = 9%%)')
     args = parser.parse_args()
 
     model = args.model
@@ -56,7 +53,6 @@ def main():
         'dockerfile_generated': 0,
         'dockerfile_verified': 0,
         'testing_verified': 0,
-        'no_tests': 0,
         'failed': 0,
         'timeout': 0
     }
@@ -75,7 +71,7 @@ def main():
         print(f"\n[{i+1}/{len(repos)}] Generating profile for {full_name}...")
         stats['total_attempted'] += 1
         
-        cmd = ['python', 'generate_profile.py', full_name, '--model', model, '--max-cost', '0.2', '--max-time', str(args.max_time), '--failure-threshold', str(args.failure_threshold)]
+        cmd = ['python', 'generate_profile.py', full_name, '--model', model, '--max-cost', '0.2', '--max-time', '1200']
         
         # If the repository is identified as Python, add the --python-repo flag
         if language == 'python':
@@ -98,14 +94,9 @@ def main():
             # Impose a timeout (slightly longer than agent's max-time to allow graceful completion)
             # check=False ensures it doesn't raise CalledProcessError automatically, 
             # allowing us to handle it ourselves or simply move on.
-            subprocess_timeout = args.max_time + 300  # Add 5 minutes buffer for graceful shutdown
-            result = subprocess.run(cmd, check=False, timeout=subprocess_timeout)
+            result = subprocess.run(cmd, check=False, timeout=1500)
             
-            if result.returncode == 124:
-                # Exit code 124 indicates agent timeout (from simple_repo_to_dockerfile.py)
-                print(f"⏰ Agent timeout: {full_name} exceeded max-time limit")
-                stats['timeout'] += 1
-            elif result.returncode != 0:
+            if result.returncode != 0:
                 print(f"⚠️  Command for {full_name} returned non-zero exit code: {result.returncode}")
                 stats['failed'] += 1
             else:
@@ -128,21 +119,6 @@ def main():
             dockerfile_path = os.path.join(result_dir, 'Dockerfile')
             test_output_path = os.path.join(result_dir, 'test_output.txt')
             parsed_status_path = os.path.join(result_dir, 'parsed_test_status.json')
-            metadata_path = os.path.join(result_dir, 'repo_metadata.json')
-            
-            # Check if repo has no tests
-            has_no_tests = False
-            if os.path.exists(metadata_path):
-                try:
-                    with open(metadata_path, 'r', encoding='utf-8') as f:
-                        metadata = json.load(f)
-                        test_commands = metadata.get('test_commands', [])
-                        test_framework = metadata.get('test_framework', '')
-                        if (not test_commands or test_commands == []) and (test_framework == 'none' or not test_framework):
-                            has_no_tests = True
-                            stats['no_tests'] += 1
-                except Exception:
-                    pass
             
             if os.path.exists(dockerfile_path):
                 stats['dockerfile_generated'] += 1
@@ -160,7 +136,6 @@ def main():
         print(f"   Dockerfile generated: {stats['dockerfile_generated']}")
         print(f"   Dockerfile verified:  {stats['dockerfile_verified']}")
         print(f"   Testing verified:     {stats['testing_verified']}")
-        print(f"   No tests found:       {stats['no_tests']}")
         print(f"   Failed:               {stats['failed']}")
         print(f"   Timeout:              {stats['timeout']}")
         
@@ -184,7 +159,6 @@ def main():
     print(f"  ✅ Dockerfile generated:    {stats['dockerfile_generated']}")
     print(f"  ✅ Dockerfile verified:     {stats['dockerfile_verified']}")
     print(f"  ✅ Testing verified:        {stats['testing_verified']}")
-    print(f"  📝 No tests found:          {stats['no_tests']}")
     print(f"  ❌ Failed:                  {stats['failed']}")
     print(f"  ⏰ Timeout:                 {stats['timeout']}")
     

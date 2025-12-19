@@ -520,6 +520,13 @@ def generate_javascript_profile_class(owner: str, repo: str, metadata: Dict[str,
     test_cmd = test_commands[0] if test_commands else 'npm test'
 
     parser_name = parsed_results.get('parser', 'mocha') if parsed_results else 'mocha'
+    
+    # Extract primary parser from combined parsers (e.g., "jest+mocha" -> "jest")
+    if '+' in parser_name:
+        primary_parser = parser_name.split('+')[0]
+    else:
+        primary_parser = parser_name
+    
     dockerfile_template = _template_dockerfile(dockerfile_content)
 
     header_comment = f"""# Auto-generated profile for {owner}/{repo}
@@ -528,19 +535,27 @@ def generate_javascript_profile_class(owner: str, repo: str, metadata: Dict[str,
 # Integration: Copy to swesmith/profiles/javascript.py
 """
 
-    # Generate log parser based on detected framework
-    if parser_name == 'jest':
+    # Generate log parser based on detected framework (check for substring to handle combined parsers)
+    # Prioritize more specific parsers first
+    if 'jest' in parser_name:
         log_parser_code = '''def log_parser(self, log: str) -> dict[str, str]:
         return parse_log_jest(log)'''
-    elif parser_name == 'mocha':
-        log_parser_code = '''def log_parser(self, log: str) -> dict[str, str]:
-        return parse_log_mocha(log)'''
-    elif parser_name == 'vitest':
+    elif 'vitest' in parser_name:
         log_parser_code = '''def log_parser(self, log: str) -> dict[str, str]:
         return parse_log_vitest(log)'''
-    else:
+    elif 'jasmine' in parser_name:
         log_parser_code = '''def log_parser(self, log: str) -> dict[str, str]:
-        return parse_log_mocha(log)  # Default fallback'''
+        return parse_log_jasmine(log)'''
+    elif 'karma' in parser_name:
+        log_parser_code = '''def log_parser(self, log: str) -> dict[str, str]:
+        return parse_log_karma(log)'''
+    elif 'mocha' in parser_name:
+        log_parser_code = '''def log_parser(self, log: str) -> dict[str, str]:
+        return parse_log_mocha(log)'''
+    else:
+        # For unknown/custom parsers, use mocha as fallback (most compatible)
+        log_parser_code = f'''def log_parser(self, log: str) -> dict[str, str]:
+        return parse_log_mocha(log)  # Fallback for {parser_name}'''
 
     profile_code = f'''{header_comment}
 @dataclass
