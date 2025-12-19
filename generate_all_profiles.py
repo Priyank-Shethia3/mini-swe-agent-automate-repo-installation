@@ -17,6 +17,7 @@ def main():
     parser.add_argument('--verify', action='store_true', help='Instruct the agent to verify generated Dockerfiles by building them.')
     parser.add_argument('--verify-testing', action='store_true', help='Instruct the agent to also run verify_testing.py to parse test output (implies --verify).')
     parser.add_argument('--livestream', action='store_true', help='Enable real-time output streaming from the agent.')
+    parser.add_argument('--max-time', type=int, default=1200, help='Maximum time in seconds for agent execution per repo (default: 1200 = 20 minutes)')
     parser.add_argument('--failure-threshold', type=float, default=0.09, help='Maximum fraction of tests allowed to fail (default: 0.09 = 9%%)')
     args = parser.parse_args()
 
@@ -74,7 +75,7 @@ def main():
         print(f"\n[{i+1}/{len(repos)}] Generating profile for {full_name}...")
         stats['total_attempted'] += 1
         
-        cmd = ['python', 'generate_profile.py', full_name, '--model', model, '--max-cost', '0.2', '--max-time', '1200', '--failure-threshold', str(args.failure_threshold)]
+        cmd = ['python', 'generate_profile.py', full_name, '--model', model, '--max-cost', '0.2', '--max-time', str(args.max_time), '--failure-threshold', str(args.failure_threshold)]
         
         # If the repository is identified as Python, add the --python-repo flag
         if language == 'python':
@@ -97,7 +98,8 @@ def main():
             # Impose a timeout (slightly longer than agent's max-time to allow graceful completion)
             # check=False ensures it doesn't raise CalledProcessError automatically, 
             # allowing us to handle it ourselves or simply move on.
-            result = subprocess.run(cmd, check=False, timeout=1500)
+            subprocess_timeout = args.max_time + 300  # Add 5 minutes buffer for graceful shutdown
+            result = subprocess.run(cmd, check=False, timeout=subprocess_timeout)
             
             if result.returncode == 124:
                 # Exit code 124 indicates agent timeout (from simple_repo_to_dockerfile.py)

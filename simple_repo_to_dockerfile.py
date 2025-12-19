@@ -283,11 +283,11 @@ The `verify_testing.py` script will:
 
 **Your task is not complete until `verify_testing.py` runs successfully and generates `parsed_test_status.json`.**
 
-After parsing succeeds, verify completeness by checking `test_output.txt` for test counts (e.g., "123 tests", "45 passing") and comparing with parsed count. If significantly different, the parser may be incomplete - update it.
+After parsing succeeds, verify completeness by checking `agent-result/$repo_folder_name/test_output.txt` for test counts (e.g., "123 tests", "45 passing") and comparing with parsed count. If significantly different, the parser may be incomplete - update it.
 
 **If `verify_testing.py` fails:**
 
-Check `test_output.txt` to see if tests actually ran:
+Check `agent-result/$repo_folder_name/test_output.txt` to see if tests actually ran:
 - **Tests ran successfully but parsing failed**: Create/update a parser (see options below)
 - **No tests exist**: Mark as no-tests repo (see below)
 
