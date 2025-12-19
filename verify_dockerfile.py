@@ -122,17 +122,24 @@ def parse_test_results(output: str, test_framework: str = None) -> Dict[str, Any
                 result['failed'] = crosses
 
     elif test_framework == 'jest':
-        # Look for jest-style output
-        pass_match = re.search(r'Tests:\s+(\d+)\s+passed', output)
-        fail_match = re.search(r'Tests:\s+(\d+)\s+failed', output)
-        total_match = re.search(r'Tests:.*?(\d+)\s+total', output)
+        # Look for jest-style output - handle flexible format with commas
+        # Format: "Tests:       257 failed, 2 skipped, 3354 passed, 3613 total"
+        pass_match = re.search(r'(\d+)\s+passed', output)
+        fail_match = re.search(r'(\d+)\s+failed', output)
+        skip_match = re.search(r'(\d+)\s+skipped', output)
+        total_match = re.search(r'(\d+)\s+total', output)
 
-        if pass_match:
+        if pass_match or fail_match or total_match:
             result['tests_run'] = True
+            
+        if pass_match:
             result['passed'] = int(pass_match.group(1))
 
         if fail_match:
             result['failed'] = int(fail_match.group(1))
+        
+        if skip_match:
+            result['skipped'] = int(skip_match.group(1))
 
         if total_match:
             result['total'] = int(total_match.group(1))
@@ -372,40 +379,16 @@ cd {clone_dir}
             all_output.append(output)
             all_output.append("")  # Empty line
 
-            # Parse test results
-            test_results = parse_test_results(output, test_framework)
-
-            if test_results['tests_run']:
-                total_tests = test_results['total']
-                failed_tests = test_results['failed']
-                passed_tests = test_results['passed']
-                
-                print(f"   📊 Test results: {passed_tests} passed, {failed_tests} failed")
-                
-                # Calculate failure rate and check against threshold
-                if total_tests > 0:
-                    failure_rate = failed_tests / total_tests
-                    if failure_rate > failure_threshold:
-                        testing_success = False
-                        print(f"   ❌ Tests failed! ({failure_rate:.1%} failure rate exceeds {failure_threshold:.1%} threshold)")
-                    else:
-                        if failed_tests > 0:
-                            print(f"   ✅ Tests passed! ({failure_rate:.1%} failure rate within {failure_threshold:.1%} threshold)")
-                        else:
-                            print(f"   ✅ All tests passed!")
-                elif not test_results['success']:
-                    testing_success = False
-                    print(f"   ❌ Tests failed!")
-                else:
-                    print(f"   ✅ All tests passed!")
+            # Just report that the command executed
+            # Test parsing and failure threshold checking is handled by verify_testing.py (Stage 3)
+            if exit_code == 0:
+                print(f"   ✅ Command completed (exit code 0)")
             else:
-                if exit_code == 0:
-                    print(f"   ✅ Command completed (exit code 0)")
-                else:
-                    print(f"   ⚠️  Command exited with code {exit_code}")
-                    # If no tests detected but command failed, consider it a test failure
-                    if 'no test' not in output.lower() and 'not found' not in output.lower():
-                        testing_success = False
+                print(f"   ⚠️  Command exited with code {exit_code}")
+                print(f"   ℹ️  Test results will be analyzed by verify_testing.py")
+            
+            # Stage 2 always succeeds if tests ran (even with failures)
+            # Let Stage 3 (verify_testing.py) determine actual pass/fail based on threshold
 
     # Save test output
     combined_output = '\n'.join(all_output)
@@ -551,48 +534,16 @@ def verify_dockerfile(dockerfile_path: Path, image_name: str = None, show_progre
             all_output.append(output)
             all_output.append("")  # Empty line
 
-            # Parse test results to determine actual success/failure
-            test_results = parse_test_results(output, test_framework)
-
-            if test_results['tests_run']:
-                total_tests = test_results['total']
-                failed_tests = test_results['failed']
-                passed_tests = test_results['passed']
-                
-                print(f"   📊 Test results detected:")
-                print(f"      ✅ Passed: {passed_tests}")
-                print(f"      ❌ Failed: {failed_tests}")
-                if test_results['skipped'] > 0:
-                    print(f"      ⏭️  Skipped: {test_results['skipped']}")
-
-                # Calculate failure rate and check against threshold
-                if total_tests > 0:
-                    failure_rate = failed_tests / total_tests
-                    if failure_rate > failure_threshold:
-                        print(f"   ❌ Tests failed! ({failure_rate:.1%} failure rate exceeds {failure_threshold:.1%} threshold)")
-                        testing_success = False
-                    else:
-                        if failed_tests > 0:
-                            print(f"   ✅ Tests passed! ({failure_rate:.1%} failure rate within {failure_threshold:.1%} threshold)")
-                        else:
-                            print(f"   ✅ All tests passed! (Testing Check: PASSED)")
-                elif test_results['success']:
-                    print(f"   ✅ All tests passed! (Testing Check: PASSED)")
-                else:
-                    print(f"   ❌ Some tests failed! (Testing Check: FAILED)")
-                    testing_success = False
+            # Just report that the command executed
+            # Test parsing and failure threshold checking is handled by verify_testing.py (Stage 3)
+            if exit_code == 0:
+                print(f"   ✅ Command completed successfully (exit code 0)")
             else:
-                # No test results detected, check exit code
-                if exit_code == 0:
-                    print(f"   ✅ Command completed successfully (exit code 0)")
-                else:
-                    print(f"   ⚠️  Command exited with code {exit_code}")
-                    # Check if this is just npm noise or actual failure
-                    if 'npm' in test_command and 'npm notice' in output and 'failing' not in output.lower():
-                        print(f"   ℹ️  Ignoring npm notices, no test failures detected")
-                    else:
-                        print(f"   ❌ Command failed (Testing Check: FAILED)")
-                        testing_success = False
+                print(f"   ⚠️  Command exited with code {exit_code}")
+                print(f"   ℹ️  Test results will be analyzed by verify_testing.py")
+            
+            # Stage 2 always succeeds if tests ran (even with failures)
+            # Let Stage 3 (verify_testing.py) determine actual pass/fail based on threshold
 
         # Save test output
         combined_output = '\n'.join(all_output)
@@ -639,7 +590,7 @@ def main():
     parser.add_argument("--allow-test-failures", action="store_true",
                         help="Accept repositories where installation succeeds but tests fail (exit 0 if installation passed)")
     parser.add_argument("--failure-threshold", type=float, default=0.09,
-                        help="Maximum fraction of tests allowed to fail (default: 0.09 = 9%%)")
+                        help="[Passed to verify_testing.py] Maximum fraction of tests allowed to fail (default: 0.09 = 9%%)")
 
     args = parser.parse_args()
 
@@ -715,17 +666,22 @@ def main():
             print(f"🐳 Docker Repository Verification:")
 
         print(f"   ✅ Installation Check: {'PASSED' if installation_success else 'FAILED'}")
-        print(f"   {'✅' if testing_success else '❌'} Testing Check: {'PASSED' if testing_success else 'FAILED'}")
+        print(f"   {'✅' if testing_success else '❌'} Test Execution: {'PASSED' if testing_success else 'FAILED'}")
+        if testing_success:
+            print(f"   ℹ️  Test results saved to test_output.txt")
+            print(f"   ℹ️  Run verify_testing.py to parse results and check thresholds")
 
         overall_success = installation_success and testing_success
 
         if overall_success:
             print(f"\n🎉 OVERALL RESULT: VERIFICATION PASSED")
-            print(f"   Both installation and testing completed successfully!")
+            print(f"   Installation and test execution completed successfully!")
+            print(f"   ℹ️  Use verify_testing.py to analyze test results and check failure thresholds")
             sys.exit(0)
         elif args.allow_test_failures and installation_success:
-            print(f"\n⚠️  OVERALL RESULT: PARTIAL SUCCESS (Installation Passed, Tests Failed)")
-            print(f"   Installation succeeded, but tests failed")
+            print(f"\n⚠️  OVERALL RESULT: PARTIAL SUCCESS (Installation Passed)")
+            print(f"   Installation succeeded and tests were executed")
+            print(f"   ℹ️  Use verify_testing.py to analyze test results and check failure thresholds")
             print(f"   Exiting with success code due to --allow-test-failures flag")
             sys.exit(0)
         else:
@@ -733,7 +689,7 @@ def main():
             if not installation_success:
                 print(f"   Installation/build failed")
             if not testing_success:
-                print(f"   Tests failed or did not run properly")
+                print(f"   Could not execute tests or capture output")
             sys.exit(1)
 
     except KeyboardInterrupt:
