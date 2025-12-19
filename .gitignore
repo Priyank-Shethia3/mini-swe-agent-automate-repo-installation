@@ -8,6 +8,8 @@ agent-result-archive/
 github_repo_scraper/*.json
 github_repo_scraper/*/
 patch_verify_testing.py
+retroactive_profile_generation.py
+fix_*.py
 .env
 *.out
 *.png

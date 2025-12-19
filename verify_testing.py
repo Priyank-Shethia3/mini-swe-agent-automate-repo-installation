@@ -1,3 +1,6 @@
+from log_parser.parsers.vitest import parse_log_vitest
+from log_parser.parsers.modernizr_custom import parse_log_modernizr_custom
+from log_parser.parsers.plotly_custom import parse_log_plotly_custom
 #!/usr/bin/env python3
 """
 Test Output Parser for Mini-SWE-Agent Pipeline
@@ -12,6 +15,7 @@ Usage:
 
 import json
 import sys
+from log_parser.parsers.phaser_custom import parse_log_phaser_custom
 import argparse
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple
@@ -19,6 +23,8 @@ from typing import Dict, List, Optional, Tuple
 # Import parsers from existing log_parser
 from log_parser.parsers.jest import parse_log_jest
 from log_parser.parsers.mocha import parse_log_mocha
+from log_parser.parsers.volkswagen_custom import parse_log_volkswagen_custom
+from log_parser.parsers.volkswagen_custom import parse_log_volkswagen_custom
 from log_parser.parsers.pytest import parse_log_pytest
 from log_parser.parsers.go_test import parse_log_go_test
 from log_parser.parsers.cargo import parse_log_cargo
@@ -26,14 +32,22 @@ from log_parser.parsers.maven import parse_log_maven
 from log_parser.parsers.gradle import parse_log_gradle
 from log_parser.parsers.junit import parse_log_junit
 from log_parser.parsers.lodash_custom import parse_log_lodash_custom
+from log_parser.parsers.twist import parse_log_twist
 from log_parser.parsers.karma import parse_log_karma
 from log_parser.parsers.cspell import parse_log_cspell
 from log_parser.parsers.stylelint import parse_log_stylelint
 from log_parser.parsers.eslint import parse_log_eslint
+from log_parser.parsers.social_analyzer_custom import parse_log_social_analyzer_custom
+from log_parser.parsers.ospec import parse_log_ospec
+from log_parser.parsers.social_analyzer_custom import parse_log_social_analyzer_custom
 
 
 # Parser registry
 PARSERS = {
+    "phaser_custom": parse_log_phaser_custom,
+    "modernizr_custom": parse_log_modernizr_custom,
+    "modernizr_custom": parse_log_modernizr_custom,
+    'plotly_custom': parse_log_plotly_custom,
     'jest': parse_log_jest,
     'mocha': parse_log_mocha,
     'pytest': parse_log_pytest,
@@ -48,11 +62,14 @@ PARSERS = {
     'cspell': parse_log_cspell,
     'stylelint': parse_log_stylelint,
     'eslint': parse_log_eslint,
+    'twist': parse_log_twist,
+    'ospec': parse_log_ospec,
+    'vitest': parse_log_vitest,
 }
 
 # Language to framework mappings
 LANGUAGE_FRAMEWORKS = {
-    'javascript': ['jest', 'mocha', 'karma', 'jasmine', 'cspell', 'stylelint', 'eslint'],
+    'javascript': ['vitest', 'ospec', 'jest', 'mocha', 'karma', 'jasmine', 'cspell', 'stylelint', 'eslint', 'social_analyzer_custom', 'twist', 'volkswagen_custom', 'volkswagen_custom'],
     'python': ['pytest'],
     'go': ['go_test'],
     'rust': ['cargo'],
