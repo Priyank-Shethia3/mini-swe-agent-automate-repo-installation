@@ -735,11 +735,13 @@ def run_pipeline(repo_name: str, is_python_repo: bool, model_name: str = "claude
             "Stage 1: Generating Dockerfile/conda script + metadata",
             livestream=livestream
         )
-        pipeline_results['stages']['stage1'] = {'success': exit_code == 0, 'output': output}
+        pipeline_results['stages']['stage1'] = {'success': exit_code == 0, 'output': output, 'exit_code': exit_code}
 
         if exit_code != 0:
             print(f"❌ Stage 1 failed with exit code {exit_code}")
             print(f"Output: {output}")
+            # Store the exit code for main() to check
+            pipeline_results['stage1_exit_code'] = exit_code
             return pipeline_results
 
         print(f"✅ Stage 1 completed successfully")
@@ -757,12 +759,13 @@ def run_pipeline(repo_name: str, is_python_repo: bool, model_name: str = "claude
             "Stage 2: Running verification and tests",
             livestream=livestream
         )
-        pipeline_results['stages']['stage2'] = {'success': exit_code == 0, 'output': output}
+        pipeline_results['stages']['stage2'] = {'success': exit_code == 0, 'output': output, 'exit_code': exit_code}
 
         if exit_code != 0:
             print(f"❌ Stage 2 failed with exit code {exit_code}")
             print(f"Output: {output}")
             print(f"🛑 Pipeline stopped - Stage 2 failure prevents Stage 3 execution")
+            pipeline_results['stage2_exit_code'] = exit_code
             return pipeline_results
         else:
             print(f"✅ Stage 2 completed successfully")
@@ -777,12 +780,13 @@ def run_pipeline(repo_name: str, is_python_repo: bool, model_name: str = "claude
             "Stage 3: Parsing test output",
             livestream=livestream
         )
-        pipeline_results['stages']['stage3'] = {'success': exit_code == 0, 'output': output}
+        pipeline_results['stages']['stage3'] = {'success': exit_code == 0, 'output': output, 'exit_code': exit_code}
 
         if exit_code != 0:
             print(f"❌ Stage 3 failed with exit code {exit_code}")
             print(f"Output: {output}")
             print(f"⚠️  Stage 3 parsing failed - profile generation may be limited")
+            pipeline_results['stage3_exit_code'] = exit_code
         else:
             print(f"✅ Stage 3 completed successfully")
 
@@ -995,11 +999,19 @@ def main():
         pipeline_results = run_pipeline(args.repo_name, args.python_repo, args.model, args.livestream, args.verify,
                                        args.verify_testing, args.max_cost, args.max_time, args.failure_threshold)
 
+        # Check if Stage 1 timed out (exit code 124)
+        if 'stage1_exit_code' in pipeline_results and pipeline_results['stage1_exit_code'] == 124:
+            print("\n⏰ Agent timed out in Stage 1")
+            sys.exit(124)  # Preserve timeout exit code
+        
         # Generate profile
         profile_code = generate_profile_from_pipeline(pipeline_results, args.python_repo)
 
         if not profile_code:
             print("\n❌ Failed to generate profile")
+            # Check for timeout in any stage
+            if any(key.endswith('_exit_code') and pipeline_results[key] == 124 for key in pipeline_results if key.endswith('_exit_code')):
+                sys.exit(124)
             sys.exit(1)
 
         # Output results
@@ -1054,6 +1066,11 @@ def main():
             print("✅ All pipeline stages completed successfully!")
             sys.exit(0)
         else:
+            # Check if any stage timed out
+            if any(key.endswith('_exit_code') and pipeline_results[key] == 124 for key in pipeline_results if key.endswith('_exit_code')):
+                print(f"⏰ Pipeline timed out")
+                sys.exit(124)
+            
             if executed_stages < 3:
                 print(f"❌ Pipeline failed at stage {executed_stages} - subsequent stages not executed")
             else:
