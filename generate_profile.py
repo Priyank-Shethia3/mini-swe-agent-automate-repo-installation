@@ -22,28 +22,33 @@ import sys
 from pathlib import Path
 from typing import Dict, Any, Optional, Tuple
 import textwrap
-import io
-from contextlib import redirect_stdout, redirect_stderr
 from datetime import datetime
-import json
 
 
-def save_profile_class(result_dir: Path, profile_class_code: str, class_name: str) -> Path:
+def save_profile_class(
+    result_dir: Path, profile_class_code: str, class_name: str
+) -> Path:
     """Save the generated profile class to generated_profiles directory."""
     profiles_dir = result_dir / "generated_profiles"
     profiles_dir.mkdir(exist_ok=True)
 
     profile_file = profiles_dir / "profile_class.py"
-    with open(profile_file, 'w', encoding='utf-8') as f:
+    with open(profile_file, "w", encoding="utf-8") as f:
         f.write(profile_class_code)
 
     return profile_file
 
 
-def save_integration_metadata(result_dir: Path, owner: str, repo: str,
-                            metadata: Dict[str, Any], parsed_results: Optional[Dict[str, Any]],
-                            is_python_repo: bool, class_name: str,
-                            pipeline_results: Dict[str, Any]) -> Path:
+def save_integration_metadata(
+    result_dir: Path,
+    owner: str,
+    repo: str,
+    metadata: Dict[str, Any],
+    parsed_results: Optional[Dict[str, Any]],
+    is_python_repo: bool,
+    class_name: str,
+    pipeline_results: Dict[str, Any],
+) -> Path:
     """Save integration metadata for SWE-smith."""
     profiles_dir = result_dir / "generated_profiles"
     profiles_dir.mkdir(exist_ok=True)
@@ -53,27 +58,29 @@ def save_integration_metadata(result_dir: Path, owner: str, repo: str,
         language = "python"
         base_class = "PythonProfile"
         target_file = "swesmith/profiles/python.py"
-    elif metadata.get('language', '').lower() == 'javascript':
+    elif metadata.get("language", "").lower() == "javascript":
         language = "javascript"
         base_class = "JavaScriptProfile"
         target_file = "swesmith/profiles/javascript.py"
     else:
-        language = metadata.get('language', 'unknown').lower()
+        language = metadata.get("language", "unknown").lower()
         base_class = "RepoProfile"
         # Map common languages to their profile files
         language_files = {
-            'go': 'golang.py',
-            'rust': 'rust.py',
-            'java': 'java.py',
-            'c': 'c.py',
-            'cpp': 'cpp.py',
-            'csharp': 'csharp.py',
-            'php': 'php.py'
+            "go": "golang.py",
+            "rust": "rust.py",
+            "java": "java.py",
+            "c": "c.py",
+            "cpp": "cpp.py",
+            "csharp": "csharp.py",
+            "php": "php.py",
         }
         target_file = f"swesmith/profiles/{language_files.get(language, 'base.py')}"
 
     # Count successful stages
-    successful_stages = sum(1 for stage in pipeline_results['stages'].values() if stage['success'])
+    successful_stages = sum(
+        1 for stage in pipeline_results["stages"].values() if stage["success"]
+    )
 
     integration_metadata = {
         "profile_class_name": class_name,
@@ -81,26 +88,30 @@ def save_integration_metadata(result_dir: Path, owner: str, repo: str,
         "base_class": base_class,
         "language": language,
         "repository": f"{owner}/{repo}",
-        "commit": metadata.get('commit_hash', 'unknown') if metadata else 'unknown',
-        "integration_ready": successful_stages >= 2,  # Stages 1&2 must succeed for profile generation
+        "commit": metadata.get("commit_hash", "unknown") if metadata else "unknown",
+        "integration_ready": successful_stages
+        >= 2,  # Stages 1&2 must succeed for profile generation
         "generated_timestamp": datetime.now().isoformat(),
         "pipeline_stages_successful": successful_stages,
         "requires_manual_review": successful_stages < 3 or parsed_results is None,
-        "test_framework": parsed_results.get('parser', 'unknown') if parsed_results else 'unknown',
-        "install_commands": metadata.get('install_commands', []) if metadata else [],
-        "test_commands": metadata.get('test_commands', []) if metadata else [],
-        "profile_generation_requirements": "Stages 1&2 must succeed - Stage 1 for analysis, Stage 2 for verification"
+        "test_framework": parsed_results.get("parser", "unknown")
+        if parsed_results
+        else "unknown",
+        "install_commands": metadata.get("install_commands", []) if metadata else [],
+        "test_commands": metadata.get("test_commands", []) if metadata else [],
+        "profile_generation_requirements": "Stages 1&2 must succeed - Stage 1 for analysis, Stage 2 for verification",
     }
 
     metadata_file = profiles_dir / "profile_metadata.json"
-    with open(metadata_file, 'w', encoding='utf-8') as f:
+    with open(metadata_file, "w", encoding="utf-8") as f:
         json.dump(integration_metadata, f, indent=2)
 
     return metadata_file
 
 
-def generate_integration_instructions(result_dir: Path, owner: str, repo: str,
-                                    class_name: str, target_file: str) -> Path:
+def generate_integration_instructions(
+    result_dir: Path, owner: str, repo: str, class_name: str, target_file: str
+) -> Path:
     """Generate integration instructions for manual copying to SWE-smith."""
     profiles_dir = result_dir / "generated_profiles"
     profiles_dir.mkdir(exist_ok=True)
@@ -152,7 +163,7 @@ Repository: {owner}/{repo}
 """
 
     instructions_file = profiles_dir / "integration_instructions.md"
-    with open(instructions_file, 'w', encoding='utf-8') as f:
+    with open(instructions_file, "w", encoding="utf-8") as f:
         f.write(instructions)
 
     return instructions_file
@@ -177,10 +188,12 @@ class OutputCapture:
 
     def get_captured_output(self) -> str:
         """Get all captured output as a single string."""
-        return ''.join(self.captured_output)
+        return "".join(self.captured_output)
 
 
-def run_pipeline_command(cmd: list, description: str, timeout: int = 1800, livestream: bool = True) -> Tuple[int, str]:
+def run_pipeline_command(
+    cmd: list, description: str, timeout: int = 1800, livestream: bool = True
+) -> Tuple[int, str]:
     """Run a pipeline command with timeout and optionally livestream output."""
     print(f"🚀 {description}...")
     print(f"   Command: {' '.join(cmd)}")
@@ -195,7 +208,7 @@ def run_pipeline_command(cmd: list, description: str, timeout: int = 1800, lives
                 stderr=subprocess.STDOUT,
                 text=True,
                 bufsize=1,
-                universal_newlines=True
+                universal_newlines=True,
             )
 
             output_lines = []
@@ -208,7 +221,7 @@ def run_pipeline_command(cmd: list, description: str, timeout: int = 1800, lives
                     if not line and process.poll() is not None:
                         break
                     if line:
-                        line = line.rstrip('\n')
+                        line = line.rstrip("\n")
                         output_lines.append(line)
                         print(f"   {line}")
 
@@ -223,7 +236,7 @@ def run_pipeline_command(cmd: list, description: str, timeout: int = 1800, lives
                     print("   " + "-" * 50)
                     return -1, timeout_msg
 
-                full_output = '\n'.join(output_lines)
+                full_output = "\n".join(output_lines)
 
             except Exception as e:
                 process.kill()
@@ -233,10 +246,7 @@ def run_pipeline_command(cmd: list, description: str, timeout: int = 1800, lives
         else:
             # Run with captured output (original behavior for stages 2&3)
             result = subprocess.run(
-                cmd,
-                capture_output=True,
-                text=True,
-                timeout=timeout
+                cmd, capture_output=True, text=True, timeout=timeout
             )
             full_output = result.stdout + result.stderr
             returncode = result.returncode
@@ -244,7 +254,7 @@ def run_pipeline_command(cmd: list, description: str, timeout: int = 1800, lives
             if full_output.strip():
                 print("📄 Command Output:")
                 # Print output with indentation for readability
-                for line in full_output.strip().split('\n'):
+                for line in full_output.strip().split("\n"):
                     print(f"   {line}")
             else:
                 print("   (No output)")
@@ -252,7 +262,7 @@ def run_pipeline_command(cmd: list, description: str, timeout: int = 1800, lives
         print("   " + "-" * 50)
 
         if returncode == 0:
-            print(f"✅ Command completed successfully (exit code 0)")
+            print("✅ Command completed successfully (exit code 0)")
         else:
             print(f"❌ Command failed (exit code {returncode})")
 
@@ -272,10 +282,10 @@ def run_pipeline_command(cmd: list, description: str, timeout: int = 1800, lives
 
 def validate_repo_name(repo_name: str) -> Tuple[str, str]:
     """Validate and parse repository name."""
-    if '/' not in repo_name:
+    if "/" not in repo_name:
         raise ValueError("Repository name must be in format 'owner/repo'")
 
-    parts = repo_name.split('/')
+    parts = repo_name.split("/")
     if len(parts) != 2:
         raise ValueError("Repository name must be in format 'owner/repo'")
 
@@ -290,7 +300,7 @@ def create_class_name(owner: str, repo: str, commit: str) -> str:
     """Generate a valid Python class name following SWE-smith conventions."""
     # Clean repo name: remove non-alphanumeric chars and capitalize
     # Handle common patterns: "pytest-practice" -> "PytestPractice"
-    clean_repo = re.sub(r'[^a-zA-Z0-9]', '', repo)
+    clean_repo = re.sub(r"[^a-zA-Z0-9]", "", repo)
 
     # Capitalize first letter and keep the rest as-is (to preserve camelCase if present)
     if clean_repo:
@@ -311,7 +321,7 @@ def load_metadata(result_dir: Path) -> Optional[Dict[str, Any]]:
         return None
 
     try:
-        with open(metadata_path, 'r') as f:
+        with open(metadata_path, "r") as f:
             return json.load(f)
     except (json.JSONDecodeError, IOError) as e:
         print(f"❌ Error reading repo_metadata.json: {e}")
@@ -327,7 +337,7 @@ def load_parsed_results(result_dir: Path) -> Optional[Dict[str, Any]]:
         return None
 
     try:
-        with open(parsed_path, 'r') as f:
+        with open(parsed_path, "r") as f:
             return json.load(f)
     except (json.JSONDecodeError, IOError) as e:
         print(f"❌ Error reading parsed_test_status.json: {e}")
@@ -342,7 +352,7 @@ def load_dockerfile(result_dir: Path) -> Optional[str]:
         return None
 
     try:
-        with open(dockerfile_path, 'r') as f:
+        with open(dockerfile_path, "r") as f:
             return f.read().strip()
     except IOError as e:
         print(f"⚠️  Error reading Dockerfile: {e}")
@@ -359,7 +369,7 @@ def load_install_script(result_dir: Path) -> Optional[str]:
 
     install_script = install_scripts[0]
     try:
-        with open(install_script, 'r') as f:
+        with open(install_script, "r") as f:
             return f.read().strip()
     except IOError as e:
         print(f"⚠️  Error reading installation script: {e}")
@@ -369,118 +379,122 @@ def load_install_script(result_dir: Path) -> Optional[str]:
 def get_parser_import_code(parser_name: str) -> str:
     """Generate the import statement for the parser."""
     parser_imports = {
-        'jest': 'from log_parser.parsers.jest import parse_log_jest',
-        'mocha': 'from log_parser.parsers.mocha import parse_log_mocha',
-        'pytest': 'from log_parser.parsers.pytest import parse_log_pytest',
-        'go_test': 'from log_parser.parsers.go_test import parse_log_go_test',
-        'cargo': 'from log_parser.parsers.cargo import parse_log_cargo',
-        'maven': 'from log_parser.parsers.maven import parse_log_maven',
+        "jest": "from log_parser.parsers.jest import parse_log_jest",
+        "mocha": "from log_parser.parsers.mocha import parse_log_mocha",
+        "pytest": "from log_parser.parsers.pytest import parse_log_pytest",
+        "go_test": "from log_parser.parsers.go_test import parse_log_go_test",
+        "cargo": "from log_parser.parsers.cargo import parse_log_cargo",
+        "maven": "from log_parser.parsers.maven import parse_log_maven",
     }
-    return parser_imports.get(parser_name, f'# Unknown parser: {parser_name}')
+    return parser_imports.get(parser_name, f"# Unknown parser: {parser_name}")
 
 
 def get_parser_function_call(parser_name: str) -> str:
     """Generate the parser function call."""
     parser_functions = {
-        'jest': 'parse_log_jest(log)',
-        'mocha': 'parse_log_mocha(log)',
-        'pytest': 'parse_log_pytest(log)',
-        'go_test': 'parse_log_go_test(log)',
-        'cargo': 'parse_log_cargo(log)',
-        'maven': 'parse_log_maven(log)',
+        "jest": "parse_log_jest(log)",
+        "mocha": "parse_log_mocha(log)",
+        "pytest": "parse_log_pytest(log)",
+        "go_test": "parse_log_go_test(log)",
+        "cargo": "parse_log_cargo(log)",
+        "maven": "parse_log_maven(log)",
     }
-    return parser_functions.get(parser_name, 'return {}  # Unknown parser')
+    return parser_functions.get(parser_name, "return {}  # Unknown parser")
 
 
 def _template_dockerfile(dockerfile_content: str) -> str:
     """Convert agent's Dockerfile to use template variables."""
     dockerfile = dockerfile_content
-    
+
     # Replace actual owner/repo with template variables
-    dockerfile = re.sub(r'https://github\.com/[^/]+/[^/\s]+\.git',
-                       'https://github.com/{self.owner}/{self.repo}.git',
-                       dockerfile)
-    dockerfile = re.sub(r'git clone https://github\.com/[^/]+/[^\s]+',
-                       'git clone https://github.com/{self.owner}/{self.repo}.git',
-                       dockerfile)
-    
+    dockerfile = re.sub(
+        r"https://github\.com/[^/]+/[^/\s]+\.git",
+        "https://github.com/{self.owner}/{self.repo}.git",
+        dockerfile,
+    )
+    dockerfile = re.sub(
+        r"git clone https://github\.com/[^/]+/[^\s]+",
+        "git clone https://github.com/{self.owner}/{self.repo}.git",
+        dockerfile,
+    )
+
     # Replace WORKDIR /app with WORKDIR /testbed (SWE-smith convention)
-    dockerfile = re.sub(r'WORKDIR /app\b', 'WORKDIR /testbed', dockerfile)
-    
+    dockerfile = re.sub(r"WORKDIR /app\b", "WORKDIR /testbed", dockerfile)
+
     # Replace paths like /app/ with /testbed/
-    dockerfile = dockerfile.replace('/app/', '/testbed/')
-    
+    dockerfile = dockerfile.replace("/app/", "/testbed/")
+
     # Replace paths like RUN git clone ... /app
-    dockerfile = re.sub(r'(git clone [^\s]+ )/app\b', r'\1/testbed', dockerfile)
-    
+    dockerfile = re.sub(r"(git clone [^\s]+ )/app\b", r"\1/testbed", dockerfile)
+
     # CRITICAL FIX for Modal compatibility:
     # Modal's legacy image builder skips WORKDIR, so we need to ensure
     # git clone CREATES /testbed explicitly, then WORKDIR sets it.
     # Change: "RUN git clone ... ." to "RUN git clone ... /testbed"
     # This must happen AFTER git is installed but BEFORE other commands
-    
+
     # Pattern: Find "git clone ... ." and replace . with /testbed
-    dockerfile = re.sub(
-        r'(RUN git clone [^\n]+) \.',
-        r'\1 /testbed',
-        dockerfile
-    )
-    
+    dockerfile = re.sub(r"(RUN git clone [^\n]+) \.", r"\1 /testbed", dockerfile)
+
     # CRITICAL FIX 2: Remove WORKDIR /testbed if it appears BEFORE git clone
     # because it creates an empty directory that git clone can't use
     # Pattern: Remove "WORKDIR /testbed" lines that appear before "RUN git clone"
-    lines = dockerfile.split('\n')
+    lines = dockerfile.split("\n")
     result_lines = []
     skip_workdir = False
-    
+
     for i, line in enumerate(lines):
         # Check if this is a WORKDIR /testbed line
-        if re.match(r'^\s*WORKDIR /testbed\s*$', line):
+        if re.match(r"^\s*WORKDIR /testbed\s*$", line):
             # Look ahead to see if git clone comes after
             has_git_clone_after = False
             for j in range(i + 1, len(lines)):
-                if 'git clone' in lines[j] and '/testbed' in lines[j]:
+                if "git clone" in lines[j] and "/testbed" in lines[j]:
                     has_git_clone_after = True
                     break
                 # Stop looking if we hit another significant command
-                if lines[j].strip().startswith('RUN') and 'git clone' not in lines[j]:
+                if lines[j].strip().startswith("RUN") and "git clone" not in lines[j]:
                     break
-            
+
             if has_git_clone_after:
                 # Skip this WORKDIR line, we'll add it after git clone
                 continue
-        
+
         result_lines.append(line)
-    
+
     # Now add WORKDIR /testbed after the git clone line if it's not already there
     final_lines = []
     for i, line in enumerate(result_lines):
         final_lines.append(line)
         # If this is the git clone line, add WORKDIR after it
-        if 'git clone' in line and '/testbed' in line:
+        if "git clone" in line and "/testbed" in line:
             # Check if next non-empty line is already WORKDIR
             next_is_workdir = False
             for j in range(i + 1, len(result_lines)):
                 if result_lines[j].strip():
-                    if 'WORKDIR /testbed' in result_lines[j]:
+                    if "WORKDIR /testbed" in result_lines[j]:
                         next_is_workdir = True
                     break
             if not next_is_workdir:
-                final_lines.append('WORKDIR /testbed')
-    
-    return '\n'.join(final_lines)
+                final_lines.append("WORKDIR /testbed")
+
+    return "\n".join(final_lines)
 
 
-def generate_python_profile_class(owner: str, repo: str, metadata: Dict[str, Any],
-                                 parsed_results: Optional[Dict[str, Any]],
-                                 install_script: Optional[str]) -> str:
+def generate_python_profile_class(
+    owner: str,
+    repo: str,
+    metadata: Dict[str, Any],
+    parsed_results: Optional[Dict[str, Any]],
+    install_script: Optional[str],
+) -> str:
     """Generate SWE-smith compatible Python profile class code."""
-    class_name = create_class_name(owner, repo, metadata.get('commit_hash', ''))
-    commit = metadata.get('commit_hash', 'unknown')
-    install_commands = metadata.get('install_commands', ['pip install -e .'])
+    class_name = create_class_name(owner, repo, metadata.get("commit_hash", ""))
+    commit = metadata.get("commit_hash", "unknown")
+    install_commands = metadata.get("install_commands", ["pip install -e ."])
 
     # Format install commands for Python list syntax
-    install_cmds_str = ',\n            '.join([f'"{cmd}"' for cmd in install_commands])
+    install_cmds_str = ",\n            ".join([f'"{cmd}"' for cmd in install_commands])
 
     # Header comment with metadata
     header_comment = f"""# Auto-generated profile for {owner}/{repo}
@@ -507,26 +521,32 @@ class {class_name}(PythonProfile):
     return profile_code
 
 
-def generate_javascript_profile_class(owner: str, repo: str, metadata: Dict[str, Any],
-                                    parsed_results: Optional[Dict[str, Any]],
-                                    dockerfile_content: Optional[str]) -> str:
+def generate_javascript_profile_class(
+    owner: str,
+    repo: str,
+    metadata: Dict[str, Any],
+    parsed_results: Optional[Dict[str, Any]],
+    dockerfile_content: Optional[str],
+) -> str:
     """Generate SWE-smith compatible JavaScript profile class code."""
     if not dockerfile_content:
-        raise ValueError(f"No Dockerfile found for {owner}/{repo}. Agent must generate Dockerfile first.")
-    
-    class_name = create_class_name(owner, repo, metadata.get('commit_hash', ''))
-    commit = metadata.get('commit_hash', 'unknown')
-    test_commands = metadata.get('test_commands', ['npm test'])
-    test_cmd = test_commands[0] if test_commands else 'npm test'
+        raise ValueError(
+            f"No Dockerfile found for {owner}/{repo}. Agent must generate Dockerfile first."
+        )
 
-    parser_name = parsed_results.get('parser', 'mocha') if parsed_results else 'mocha'
-    
+    class_name = create_class_name(owner, repo, metadata.get("commit_hash", ""))
+    commit = metadata.get("commit_hash", "unknown")
+    test_commands = metadata.get("test_commands", ["npm test"])
+    test_cmd = test_commands[0] if test_commands else "npm test"
+
+    parser_name = parsed_results.get("parser", "mocha") if parsed_results else "mocha"
+
     # Extract primary parser from combined parsers (e.g., "jest+mocha" -> "jest")
-    if '+' in parser_name:
-        primary_parser = parser_name.split('+')[0]
+    if "+" in parser_name:
+        primary_parser = parser_name.split("+")[0]
     else:
         primary_parser = parser_name
-    
+
     dockerfile_template = _template_dockerfile(dockerfile_content)
 
     header_comment = f"""# Auto-generated profile for {owner}/{repo}
@@ -537,25 +557,25 @@ def generate_javascript_profile_class(owner: str, repo: str, metadata: Dict[str,
 
     # Generate log parser based on detected framework (check for substring to handle combined parsers)
     # Prioritize more specific parsers first
-    if 'jest' in parser_name:
-        log_parser_code = '''def log_parser(self, log: str) -> dict[str, str]:
-        return parse_log_jest(log)'''
-    elif 'vitest' in parser_name:
-        log_parser_code = '''def log_parser(self, log: str) -> dict[str, str]:
-        return parse_log_vitest(log)'''
-    elif 'jasmine' in parser_name:
-        log_parser_code = '''def log_parser(self, log: str) -> dict[str, str]:
-        return parse_log_jasmine(log)'''
-    elif 'karma' in parser_name:
-        log_parser_code = '''def log_parser(self, log: str) -> dict[str, str]:
-        return parse_log_karma(log)'''
-    elif 'mocha' in parser_name:
-        log_parser_code = '''def log_parser(self, log: str) -> dict[str, str]:
-        return parse_log_mocha(log)'''
+    if "jest" in parser_name:
+        log_parser_code = """def log_parser(self, log: str) -> dict[str, str]:
+        return parse_log_jest(log)"""
+    elif "vitest" in parser_name:
+        log_parser_code = """def log_parser(self, log: str) -> dict[str, str]:
+        return parse_log_vitest(log)"""
+    elif "jasmine" in parser_name:
+        log_parser_code = """def log_parser(self, log: str) -> dict[str, str]:
+        return parse_log_jasmine(log)"""
+    elif "karma" in parser_name:
+        log_parser_code = """def log_parser(self, log: str) -> dict[str, str]:
+        return parse_log_karma(log)"""
+    elif "mocha" in parser_name:
+        log_parser_code = """def log_parser(self, log: str) -> dict[str, str]:
+        return parse_log_mocha(log)"""
     else:
         # For unknown/custom parsers, use mocha as fallback (most compatible)
-        log_parser_code = f'''def log_parser(self, log: str) -> dict[str, str]:
-        return parse_log_mocha(log)  # Fallback for {parser_name}'''
+        log_parser_code = f"""def log_parser(self, log: str) -> dict[str, str]:
+        return parse_log_mocha(log)  # Fallback for {parser_name}"""
 
     profile_code = f'''{header_comment}
 @dataclass
@@ -577,44 +597,52 @@ class {class_name}(JavaScriptProfile):
     return profile_code
 
 
-def generate_generic_profile_class(owner: str, repo: str, metadata: Dict[str, Any],
-                                 parsed_results: Optional[Dict[str, Any]],
-                                 dockerfile_content: Optional[str]) -> str:
+def generate_generic_profile_class(
+    owner: str,
+    repo: str,
+    metadata: Dict[str, Any],
+    parsed_results: Optional[Dict[str, Any]],
+    dockerfile_content: Optional[str],
+) -> str:
     """Generate SWE-smith compatible generic profile class code for non-JS/non-Python repos."""
     if not dockerfile_content:
-        raise ValueError(f"No Dockerfile found for {owner}/{repo}. Agent must generate Dockerfile first.")
-    
-    class_name = create_class_name(owner, repo, metadata.get('commit_hash', ''))
-    commit = metadata.get('commit_hash', 'unknown')
-    language = metadata.get('language', 'unknown').lower()
-    test_commands = metadata.get('test_commands', ['make test'])
-    test_cmd = test_commands[0] if test_commands else 'make test'
+        raise ValueError(
+            f"No Dockerfile found for {owner}/{repo}. Agent must generate Dockerfile first."
+        )
+
+    class_name = create_class_name(owner, repo, metadata.get("commit_hash", ""))
+    commit = metadata.get("commit_hash", "unknown")
+    language = metadata.get("language", "unknown").lower()
+    test_commands = metadata.get("test_commands", ["make test"])
+    test_cmd = test_commands[0] if test_commands else "make test"
 
     # Detect Maven from test commands
-    is_maven = any('mvn' in cmd for cmd in test_commands)
-    
+    is_maven = any("mvn" in cmd for cmd in test_commands)
+
     # Use Maven parser if Maven detected, otherwise use parsed_results or default
     if is_maven:
-        parser_name = 'maven'
+        parser_name = "maven"
     else:
-        parser_name = parsed_results.get('parser', 'unknown') if parsed_results else 'unknown'
-    
+        parser_name = (
+            parsed_results.get("parser", "unknown") if parsed_results else "unknown"
+        )
+
     dockerfile_template = _template_dockerfile(dockerfile_content)
-    
+
     # Determine the appropriate base class based on language
     base_class_mapping = {
-        'java': 'JavaProfile',
-        'go': 'GolangProfile',
-        'golang': 'GolangProfile',
-        'rust': 'RustProfile',
-        'c': 'CProfile',
-        'cpp': 'CppProfile',
-        'c++': 'CppProfile',
-        'csharp': 'CSharpProfile',
-        'c#': 'CSharpProfile',
-        'php': 'PhpProfile',
+        "java": "JavaProfile",
+        "go": "GolangProfile",
+        "golang": "GolangProfile",
+        "rust": "RustProfile",
+        "c": "CProfile",
+        "cpp": "CppProfile",
+        "c++": "CppProfile",
+        "csharp": "CSharpProfile",
+        "c#": "CSharpProfile",
+        "php": "PhpProfile",
     }
-    base_class = base_class_mapping.get(language, 'RepoProfile')
+    base_class = base_class_mapping.get(language, "RepoProfile")
 
     header_comment = f"""# Auto-generated profile for {owner}/{repo} ({language})
 # Commit: {commit}
@@ -623,21 +651,21 @@ def generate_generic_profile_class(owner: str, repo: str, metadata: Dict[str, An
 """
 
     # Generate appropriate log parser based on detected framework
-    if parser_name == 'go_test':
+    if parser_name == "go_test":
         log_parser_code = '''def log_parser(self, log: str) -> dict[str, str]:
         """Parse Go test output."""
         # Note: parse_log_go_test should be imported at top of file
         if parse_log_go_test is not None:
             return parse_log_go_test(log)
         return {}'''
-    elif parser_name == 'cargo':
+    elif parser_name == "cargo":
         log_parser_code = '''def log_parser(self, log: str) -> dict[str, str]:
         """Parse Cargo test output."""
         # Note: parse_log_cargo should be imported at top of file
         if parse_log_cargo is not None:
             return parse_log_cargo(log)
         return {}'''
-    elif parser_name == 'maven':
+    elif parser_name == "maven":
         log_parser_code = '''def log_parser(self, log: str) -> dict[str, str]:
         """Parse Maven Surefire text output with per-method granularity.
         
@@ -668,7 +696,7 @@ def generate_generic_profile_class(owner: str, repo: str, metadata: Dict[str, An
                 test_status_map[test_name.group(2)] = TestStatus.PASSED.value
         return test_status_map'''
     else:
-        log_parser_code = '''def log_parser(self, log: str) -> dict[str, str]:
+        log_parser_code = """def log_parser(self, log: str) -> dict[str, str]:
         # Generic parser - customize based on your test framework
         test_status_map = {}
         for line in log.split("\\n"):
@@ -676,7 +704,7 @@ def generate_generic_profile_class(owner: str, repo: str, metadata: Dict[str, An
                 test_status_map[line.strip()] = "PASSED"
             elif "FAIL" in line:
                 test_status_map[line.strip()] = "FAILED"
-        return test_status_map'''
+        return test_status_map"""
 
     profile_code = f'''{header_comment}
 @dataclass
@@ -698,9 +726,17 @@ class {class_name}({base_class}):
     return profile_code
 
 
-def run_pipeline(repo_name: str, is_python_repo: bool, model_name: str = "claude-sonnet-4-20250514",
-                 livestream: bool = False, verify: bool = False, verify_testing: bool = False, 
-                 max_cost: float = 2.0, max_time: int = 1200, failure_threshold: float = 0.09) -> Dict[str, Any]:
+def run_pipeline(
+    repo_name: str,
+    is_python_repo: bool,
+    model_name: str = "claude-sonnet-4-20250514",
+    livestream: bool = False,
+    verify: bool = False,
+    verify_testing: bool = False,
+    max_cost: float = 2.0,
+    max_time: int = 1200,
+    failure_threshold: float = 0.09,
+) -> Dict[str, Any]:
     """Run the complete 3-stage pipeline with full output capture."""
     owner, repo = validate_repo_name(repo_name)
     result_dir = Path("agent-result") / f"{owner}-{repo}"
@@ -709,14 +745,14 @@ def run_pipeline(repo_name: str, is_python_repo: bool, model_name: str = "claude
     script_dir = Path(__file__).parent.resolve()
 
     pipeline_results = {
-        'owner': owner,
-        'repo': repo,
-        'result_dir': result_dir,
-        'stages': {
-            'stage1': {'success': False, 'output': ''},
-            'stage2': {'success': False, 'output': ''},
-            'stage3': {'success': False, 'output': ''},
-        }
+        "owner": owner,
+        "repo": repo,
+        "result_dir": result_dir,
+        "stages": {
+            "stage1": {"success": False, "output": ""},
+            "stage2": {"success": False, "output": ""},
+            "stage3": {"success": False, "output": ""},
+        },
     }
 
     # Set up output capture
@@ -732,11 +768,17 @@ def run_pipeline(repo_name: str, is_python_repo: bool, model_name: str = "claude
 
         # Stage 1: Generate Dockerfile/conda script + metadata
         stage1_cmd = [
-            "python", str(script_dir / "simple_repo_to_dockerfile.py"), repo_name,
-            "--model_name", model_name,
-            "--max-cost", str(max_cost),
-            "--max-time", str(max_time),
-            "--failure-threshold", str(failure_threshold)
+            "python",
+            str(script_dir / "simple_repo_to_dockerfile.py"),
+            repo_name,
+            "--model_name",
+            model_name,
+            "--max-cost",
+            str(max_cost),
+            "--max-time",
+            str(max_time),
+            "--failure-threshold",
+            str(failure_threshold),
         ]
         if is_python_repo:
             stage1_cmd.append("--python-repo")
@@ -748,21 +790,31 @@ def run_pipeline(repo_name: str, is_python_repo: bool, model_name: str = "claude
         exit_code, output = run_pipeline_command(
             stage1_cmd,
             "Stage 1: Generating Dockerfile/conda script + metadata",
-            livestream=livestream
+            livestream=livestream,
         )
-        pipeline_results['stages']['stage1'] = {'success': exit_code == 0, 'output': output, 'exit_code': exit_code}
+        pipeline_results["stages"]["stage1"] = {
+            "success": exit_code == 0,
+            "output": output,
+            "exit_code": exit_code,
+        }
 
         if exit_code != 0:
             print(f"❌ Stage 1 failed with exit code {exit_code}")
             print(f"Output: {output}")
             # Store the exit code for main() to check
-            pipeline_results['stage1_exit_code'] = exit_code
+            pipeline_results["stage1_exit_code"] = exit_code
             return pipeline_results
 
-        print(f"✅ Stage 1 completed successfully")
+        print("✅ Stage 1 completed successfully")
 
         # Stage 2: Verify and run tests
-        stage2_cmd = ["python", str(script_dir / "verify_dockerfile.py"), str(result_dir), "--failure-threshold", str(failure_threshold)]
+        stage2_cmd = [
+            "python",
+            str(script_dir / "verify_dockerfile.py"),
+            str(result_dir),
+            "--failure-threshold",
+            str(failure_threshold),
+        ]
         if is_python_repo:
             stage2_cmd.append("--python-repo")
         # Only cleanup if we're not doing test parsing (which needs test_output.txt)
@@ -770,40 +822,50 @@ def run_pipeline(repo_name: str, is_python_repo: bool, model_name: str = "claude
             stage2_cmd.append("--cleanup")
 
         exit_code, output = run_pipeline_command(
-            stage2_cmd,
-            "Stage 2: Running verification and tests",
-            livestream=livestream
+            stage2_cmd, "Stage 2: Running verification and tests", livestream=livestream
         )
-        pipeline_results['stages']['stage2'] = {'success': exit_code == 0, 'output': output, 'exit_code': exit_code}
+        pipeline_results["stages"]["stage2"] = {
+            "success": exit_code == 0,
+            "output": output,
+            "exit_code": exit_code,
+        }
 
         if exit_code != 0:
             print(f"❌ Stage 2 failed with exit code {exit_code}")
             print(f"Output: {output}")
-            print(f"🛑 Pipeline stopped - Stage 2 failure prevents Stage 3 execution")
-            pipeline_results['stage2_exit_code'] = exit_code
+            print("🛑 Pipeline stopped - Stage 2 failure prevents Stage 3 execution")
+            pipeline_results["stage2_exit_code"] = exit_code
             return pipeline_results
         else:
-            print(f"✅ Stage 2 completed successfully")
+            print("✅ Stage 2 completed successfully")
 
         # Stage 3: Parse test output
-        stage3_cmd = ["python", str(script_dir / "verify_testing.py"), str(result_dir), "--failure-threshold", str(failure_threshold)]
+        stage3_cmd = [
+            "python",
+            str(script_dir / "verify_testing.py"),
+            str(result_dir),
+            "--failure-threshold",
+            str(failure_threshold),
+        ]
         if is_python_repo:
             stage3_cmd.append("--python-repo")
 
         exit_code, output = run_pipeline_command(
-            stage3_cmd,
-            "Stage 3: Parsing test output",
-            livestream=livestream
+            stage3_cmd, "Stage 3: Parsing test output", livestream=livestream
         )
-        pipeline_results['stages']['stage3'] = {'success': exit_code == 0, 'output': output, 'exit_code': exit_code}
+        pipeline_results["stages"]["stage3"] = {
+            "success": exit_code == 0,
+            "output": output,
+            "exit_code": exit_code,
+        }
 
         if exit_code != 0:
             print(f"❌ Stage 3 failed with exit code {exit_code}")
             print(f"Output: {output}")
-            print(f"⚠️  Stage 3 parsing failed - profile generation may be limited")
-            pipeline_results['stage3_exit_code'] = exit_code
+            print("⚠️  Stage 3 parsing failed - profile generation may be limited")
+            pipeline_results["stage3_exit_code"] = exit_code
         else:
-            print(f"✅ Stage 3 completed successfully")
+            print("✅ Stage 3 completed successfully")
 
         return pipeline_results
 
@@ -816,34 +878,38 @@ def run_pipeline(repo_name: str, is_python_repo: bool, model_name: str = "claude
         if result_dir.exists():
             pipeline_log_path = result_dir / "pipeline_full_log.txt"
             try:
-                with open(pipeline_log_path, 'w', encoding='utf-8') as f:
+                with open(pipeline_log_path, "w", encoding="utf-8") as f:
                     # Add header with timestamp and pipeline info
-                    f.write(f"# Pipeline Full Log\n")
+                    f.write("# Pipeline Full Log\n")
                     f.write(f"# Repository: {repo_name}\n")
                     f.write(f"# Python Repo: {is_python_repo}\n")
                     f.write(f"# Model: {model_name}\n")
                     f.write(f"# Timestamp: {datetime.now().isoformat()}\n")
-                    f.write(f"# " + "=" * 60 + "\n\n")
+                    f.write("# " + "=" * 60 + "\n\n")
                     f.write(output_capture.get_captured_output())
                 print(f"📋 Full pipeline log saved to: {pipeline_log_path}")
             except Exception as e:
                 print(f"⚠️  Warning: Could not save pipeline log: {e}")
         else:
-            print("⚠️  Warning: Result directory does not exist, cannot save pipeline log")
+            print(
+                "⚠️  Warning: Result directory does not exist, cannot save pipeline log"
+            )
 
 
-def generate_profile_from_pipeline(pipeline_results: Dict[str, Any], is_python_repo: bool) -> Optional[str]:
+def generate_profile_from_pipeline(
+    pipeline_results: Dict[str, Any], is_python_repo: bool
+) -> Optional[str]:
     """Generate and save SWE-smith compatible profile class from pipeline results."""
-    owner = pipeline_results['owner']
-    repo = pipeline_results['repo']
-    result_dir = pipeline_results['result_dir']
+    owner = pipeline_results["owner"]
+    repo = pipeline_results["repo"]
+    result_dir = pipeline_results["result_dir"]
 
     print(f"\n📝 Checking pipeline status for {owner}/{repo}...")
 
     # Check if essential stages completed successfully
-    stage1_success = pipeline_results['stages']['stage1']['success']
-    stage2_success = pipeline_results['stages']['stage2']['success']
-    stage3_success = pipeline_results['stages']['stage3']['success']
+    stage1_success = pipeline_results["stages"]["stage1"]["success"]
+    stage2_success = pipeline_results["stages"]["stage2"]["success"]
+    stage3_success = pipeline_results["stages"]["stage3"]["success"]
 
     if not stage1_success:
         print("❌ Stage 1 failed - cannot generate profile without repository analysis")
@@ -851,7 +917,9 @@ def generate_profile_from_pipeline(pipeline_results: Dict[str, Any], is_python_r
         return None
 
     if not stage2_success:
-        print("❌ Stage 2 failed - cannot generate profile without installation/testing verification")
+        print(
+            "❌ Stage 2 failed - cannot generate profile without installation/testing verification"
+        )
         print("   Stage 2 is required to ensure the profile works correctly")
         return None
 
@@ -874,7 +942,9 @@ def generate_profile_from_pipeline(pipeline_results: Dict[str, Any], is_python_r
     print(f"✅ Loaded metadata: {metadata.get('language', 'unknown')} repository")
 
     if parsed_results:
-        print(f"✅ Loaded parsing results: {parsed_results.get('parser', 'unknown')} parser identified")
+        print(
+            f"✅ Loaded parsing results: {parsed_results.get('parser', 'unknown')} parser identified"
+        )
     else:
         print("⚠️  No parsing results available - using defaults")
 
@@ -883,23 +953,29 @@ def generate_profile_from_pipeline(pipeline_results: Dict[str, Any], is_python_r
         install_script = load_install_script(result_dir)
         if install_script:
             print("✅ Loaded conda installation script")
-        profile_code = generate_python_profile_class(owner, repo, metadata, parsed_results, install_script)
+        profile_code = generate_python_profile_class(
+            owner, repo, metadata, parsed_results, install_script
+        )
 
-    elif metadata.get('language', '').lower() == 'javascript':
+    elif metadata.get("language", "").lower() == "javascript":
         dockerfile_content = load_dockerfile(result_dir)
         if dockerfile_content:
             print("✅ Loaded Dockerfile content")
-        profile_code = generate_javascript_profile_class(owner, repo, metadata, parsed_results, dockerfile_content)
+        profile_code = generate_javascript_profile_class(
+            owner, repo, metadata, parsed_results, dockerfile_content
+        )
 
     else:
         # Generic profile for other languages
         dockerfile_content = load_dockerfile(result_dir)
         if dockerfile_content:
             print("✅ Loaded Dockerfile content")
-        profile_code = generate_generic_profile_class(owner, repo, metadata, parsed_results, dockerfile_content)
+        profile_code = generate_generic_profile_class(
+            owner, repo, metadata, parsed_results, dockerfile_content
+        )
 
     # Save profile in SWE-smith compatible format
-    class_name = create_class_name(owner, repo, metadata.get('commit_hash', ''))
+    class_name = create_class_name(owner, repo, metadata.get("commit_hash", ""))
 
     try:
         # Save the profile class
@@ -908,13 +984,19 @@ def generate_profile_from_pipeline(pipeline_results: Dict[str, Any], is_python_r
 
         # Save integration metadata
         metadata_file = save_integration_metadata(
-            result_dir, owner, repo, metadata, parsed_results,
-            is_python_repo, class_name, pipeline_results
+            result_dir,
+            owner,
+            repo,
+            metadata,
+            parsed_results,
+            is_python_repo,
+            class_name,
+            pipeline_results,
         )
         print(f"✅ Integration metadata saved to: {metadata_file}")
 
         # Load the metadata to get target file for instructions
-        with open(metadata_file, 'r') as f:
+        with open(metadata_file, "r") as f:
             integration_meta = json.load(f)
 
         # Generate integration instructions
@@ -923,7 +1005,7 @@ def generate_profile_from_pipeline(pipeline_results: Dict[str, Any], is_python_r
         # )
         # print(f"✅ Integration instructions saved to: {instructions_file}")
 
-        print(f"\n🎯 Profile ready for SWE-smith integration!")
+        print("\n🎯 Profile ready for SWE-smith integration!")
         print(f"   Class name: {class_name}")
         print(f"   Target file: {integration_meta['target_file']}")
         print(f"   Integration ready: {integration_meta['integration_ready']}")
@@ -944,64 +1026,63 @@ def main():
           python generate_profile.py fastapi/typer --python-repo
           python generate_profile.py expressjs/express
           python generate_profile.py rust-lang/cargo --model gpt-4o-mini
-        """)
+        """),
     )
 
     parser.add_argument(
         "repo_name",
-        help="GitHub repository in format 'owner/repo' (e.g., fastapi/typer)"
+        help="GitHub repository in format 'owner/repo' (e.g., fastapi/typer)",
     )
     parser.add_argument(
         "--python-repo",
         action="store_true",
-        help="Treat as Python repository (generates conda-based profile)"
+        help="Treat as Python repository (generates conda-based profile)",
     )
     parser.add_argument(
         "--model",
         default="claude-sonnet-4-20250514",
-        help="Model name to use for pipeline (default: claude-sonnet-4-20250514)"
+        help="Model name to use for pipeline (default: claude-sonnet-4-20250514)",
     )
     parser.add_argument(
-        "--output",
-        help="Output file for generated profile (default: print to stdout)"
+        "--output", help="Output file for generated profile (default: print to stdout)"
     )
     parser.add_argument(
         "--json",
         action="store_true",
-        help="Output profile data as JSON instead of Python class"
+        help="Output profile data as JSON instead of Python class",
     )
     parser.add_argument(
         "--livestream",
         action="store_true",
-        help="Enable livestream output for pipeline stages (default: False)"
+        help="Enable livestream output for pipeline stages (default: False)",
     )
     parser.add_argument(
         "--verify",
         action="store_true",
-        help="Instruct the agent to verify the generated Dockerfile by building it (passed to simple_repo_to_dockerfile.py)"
+        help="Instruct the agent to verify the generated Dockerfile by building it (passed to simple_repo_to_dockerfile.py)",
     )
     parser.add_argument(
         "--verify-testing",
         action="store_true",
-        help="Instruct the agent to also run verify_testing.py to parse test output (implies --verify, passed to simple_repo_to_dockerfile.py)"
+        help="Instruct the agent to also run verify_testing.py to parse test output (implies --verify, passed to simple_repo_to_dockerfile.py)",
     )
     parser.add_argument(
         "--max-cost",
         type=float,
         default=2.0,
-        help="Maximum cost in dollars for agent execution in Stage 1 (default: 2.0)"
+        help="Maximum cost in dollars for agent execution in Stage 1 (default: 2.0)",
     )
     parser.add_argument(
         "--max-time",
         type=int,
         default=1200,
-        help="Maximum time in seconds for agent execution in Stage 1 (default: 1200 = 20 minutes)"
+        help="Maximum time in seconds for agent execution in Stage 1 (default: 1200 = 20 minutes)",
     )
     parser.add_argument(
         "--failure-threshold",
         type=float,
         default=0.09,
-        help="Maximum fraction of tests allowed to fail (default: 0.09 = 9%%)"
+        help="Maximum fraction of tests allowed to fail (default: 0.09 = 9%%)",
     )
 
     args = parser.parse_args()
@@ -1011,21 +1092,39 @@ def main():
         owner, repo = validate_repo_name(args.repo_name)
 
         # Run the complete pipeline
-        pipeline_results = run_pipeline(args.repo_name, args.python_repo, args.model, args.livestream, args.verify,
-                                       args.verify_testing, args.max_cost, args.max_time, args.failure_threshold)
+        pipeline_results = run_pipeline(
+            args.repo_name,
+            args.python_repo,
+            args.model,
+            args.livestream,
+            args.verify,
+            args.verify_testing,
+            args.max_cost,
+            args.max_time,
+            args.failure_threshold,
+        )
 
         # Check if Stage 1 timed out (exit code 124)
-        if 'stage1_exit_code' in pipeline_results and pipeline_results['stage1_exit_code'] == 124:
+        if (
+            "stage1_exit_code" in pipeline_results
+            and pipeline_results["stage1_exit_code"] == 124
+        ):
             print("\n⏰ Agent timed out in Stage 1")
             sys.exit(124)  # Preserve timeout exit code
-        
+
         # Generate profile
-        profile_code = generate_profile_from_pipeline(pipeline_results, args.python_repo)
+        profile_code = generate_profile_from_pipeline(
+            pipeline_results, args.python_repo
+        )
 
         if not profile_code:
             print("\n❌ Failed to generate profile")
             # Check for timeout in any stage
-            if any(key.endswith('_exit_code') and pipeline_results[key] == 124 for key in pipeline_results if key.endswith('_exit_code')):
+            if any(
+                key.endswith("_exit_code") and pipeline_results[key] == 124
+                for key in pipeline_results
+                if key.endswith("_exit_code")
+            ):
                 sys.exit(124)
             sys.exit(1)
 
@@ -1036,19 +1135,29 @@ def main():
 
         if args.json:
             # Convert to JSON format (simplified)
-            metadata = load_metadata(pipeline_results['result_dir'])
-            parsed_results = load_parsed_results(pipeline_results['result_dir'])
+            metadata = load_metadata(pipeline_results["result_dir"])
+            parsed_results = load_parsed_results(pipeline_results["result_dir"])
 
             profile_json = {
-                'owner': owner,
-                'repo': repo,
-                'commit': metadata.get('commit_hash', 'unknown') if metadata else 'unknown',
-                'language': metadata.get('language', 'unknown') if metadata else 'unknown',
-                'is_python_repo': args.python_repo,
-                'install_commands': metadata.get('install_commands', []) if metadata else [],
-                'test_commands': metadata.get('test_commands', []) if metadata else [],
-                'parser': parsed_results.get('parser', 'unknown') if parsed_results else 'unknown',
-                'pipeline_success': all(stage['success'] for stage in pipeline_results['stages'].values())
+                "owner": owner,
+                "repo": repo,
+                "commit": metadata.get("commit_hash", "unknown")
+                if metadata
+                else "unknown",
+                "language": metadata.get("language", "unknown")
+                if metadata
+                else "unknown",
+                "is_python_repo": args.python_repo,
+                "install_commands": metadata.get("install_commands", [])
+                if metadata
+                else [],
+                "test_commands": metadata.get("test_commands", []) if metadata else [],
+                "parser": parsed_results.get("parser", "unknown")
+                if parsed_results
+                else "unknown",
+                "pipeline_success": all(
+                    stage["success"] for stage in pipeline_results["stages"].values()
+                ),
             }
 
             output_content = json.dumps(profile_json, indent=2)
@@ -1058,7 +1167,7 @@ def main():
         # Write to file or stdout
         if args.output:
             output_path = Path(args.output)
-            with open(output_path, 'w') as f:
+            with open(output_path, "w") as f:
                 f.write(output_content)
             print(f"📝 Profile written to: {output_path}")
         else:
@@ -1067,10 +1176,14 @@ def main():
             print(output_content)
 
         # Summary
-        successful_stages = sum(1 for stage in pipeline_results['stages'].values() if stage['success'])
-        executed_stages = sum(1 for stage in pipeline_results['stages'].values() if stage['output'])
+        successful_stages = sum(
+            1 for stage in pipeline_results["stages"].values() if stage["success"]
+        )
+        executed_stages = sum(
+            1 for stage in pipeline_results["stages"].values() if stage["output"]
+        )
 
-        print(f"\n📊 Pipeline Summary:")
+        print("\n📊 Pipeline Summary:")
         print(f"   Successful stages: {successful_stages}/{executed_stages}")
         print(f"   Result directory: {pipeline_results['result_dir']}")
 
@@ -1082,14 +1195,22 @@ def main():
             sys.exit(0)
         else:
             # Check if any stage timed out
-            if any(key.endswith('_exit_code') and pipeline_results[key] == 124 for key in pipeline_results if key.endswith('_exit_code')):
-                print(f"⏰ Pipeline timed out")
+            if any(
+                key.endswith("_exit_code") and pipeline_results[key] == 124
+                for key in pipeline_results
+                if key.endswith("_exit_code")
+            ):
+                print("⏰ Pipeline timed out")
                 sys.exit(124)
-            
+
             if executed_stages < 3:
-                print(f"❌ Pipeline failed at stage {executed_stages} - subsequent stages not executed")
+                print(
+                    f"❌ Pipeline failed at stage {executed_stages} - subsequent stages not executed"
+                )
             else:
-                print(f"⚠️  {3-successful_stages} stage(s) had issues - profile may be incomplete")
+                print(
+                    f"⚠️  {3 - successful_stages} stage(s) had issues - profile may be incomplete"
+                )
             sys.exit(1)
 
     except ValueError as e:

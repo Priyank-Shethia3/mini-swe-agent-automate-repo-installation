@@ -40,17 +40,23 @@ agent:
        - owner: Repository owner (e.g., "expressjs")
        - repo: Repository name (e.g., "express")
        - install_commands: List of installation commands used (e.g., ["npm install", "pip install -e .", "mvn clean install -B -DskipTests"])
-       - test_commands: List of test commands in verbose mode (e.g., ["npm test -- --verbose", "pytest -v", "cargo test -- --nocapture"])
-         - **For Maven projects**: Use `mvn test -B -T 1C -Dsurefire.useFile=false -Dsurefire.printSummary=true -Dsurefire.reportFormat=plain` for optimal output parsing
-           - `-T 1C`: Parallel execution (1 thread per CPU core) for faster tests
-           - `-Dsurefire.useFile=false`: Stream output to stdout instead of files
-           - `-Dsurefire.printSummary=true`: Print test summary
-           - `-Dsurefire.reportFormat=plain`: Use plain text format for easier parsing
-           - **Important**: Test ALL modules unless you also limited install to specific modules with `-pl`
-           - For multi-module projects where install_commands uses `-pl <module>`, test_commands should use the same scope (e.g., if install uses `-pl gson -am`, test should use `-pl gson`)
-         - **For Gradle projects**: Use `./gradlew test --continue --no-daemon || true; find build/test-results/test -type f -name '*.xml' -exec cat {} \;` to output JUnit XML results
-         - **Test result output**: Ensure test commands output parseable results (XML/JSON). Append result extraction to test_commands (e.g., for Gradle: `|| true; find build/test-results -name '*.xml' -exec cat {} \;`, for Maven: Surefire outputs are already parseable)
-         - Note: For Maven multi-module projects, ensure install_commands and test_commands use the same `-pl <module>` scope if specified
+      - test_commands: List of test commands that produce parseable test output. Commands must ensure fresh test execution (not cached results).
+        - **For Maven projects**: Use `mvn test -B -T 1C -Dsurefire.useFile=false -Dsurefire.printSummary=true -Dsurefire.reportFormat=plain` for optimal output parsing
+          - `-T 1C`: Parallel execution (1 thread per CPU core) for faster tests
+          - `-Dsurefire.useFile=false`: Stream output to stdout instead of files
+          - `-Dsurefire.printSummary=true`: Print test summary
+          - `-Dsurefire.reportFormat=plain`: Use plain text format for easier parsing
+          - **Important**: Test ALL modules unless you also limited install to specific modules with `-pl`
+          - For multi-module projects where install_commands uses `-pl <module>`, test_commands should use the same scope (e.g., if install uses `-pl gson -am`, test should use `-pl gson`)
+        - **For Gradle projects**: Use `./gradlew test --rerun-tasks --continue --no-daemon --console=plain || true; find . -type f -name 'TEST-*.xml' -exec cat {} \;`
+          - `--rerun-tasks`: Forces test execution even if cached (critical - without this, tests show "UP-TO-DATE" and generate no results)
+          - `--continue`: Run all tests even if some fail
+          - `--no-daemon`: Avoid daemon overhead
+          - `--console=plain`: Plain output for parsing
+          - `|| true; find ...`: Always succeed and extract XML results for parsing
+        - **Test result output**: Test commands must produce parseable output. For frameworks that output XML (JUnit, TestNG), append result extraction.
+        - **Critical**: Verify test commands actually execute tests (not use cached results) and generate output files. If tests show "UP-TO-DATE" or "SKIPPED", they won't be parseable.
+        - Note: For Maven multi-module projects, ensure install_commands and test_commands use the same `-pl <module>` scope if specified
        - language: The programming language (e.g., "javascript", "python", "go", "rust", "java")
        - test_framework: The detected test framework (e.g., "jest", "mocha", "pytest", "go_test", "cargo", "maven", "gradle", "junit")
           - If unable to determine the test framework, set it to "unknown"
@@ -82,8 +88,8 @@ agent:
     - Install only necessary system dependencies
     - Create the Dockerfile in agent-result/$repo_folder_name directory
     - Dockerfile should ONLY install dependencies, NOT run tests
-    - Test commands should be stored in metadata for separate execution in verbose mode
-    - Always specify verbose flags for test commands (--verbose, -v, -X, --nocapture, etc.)
+    - Test commands must execute tests freshly (not use cached results) and produce parseable output
+    - Ensure test commands include cache-bypassing flags for build tools (e.g., `--rerun-tasks` for Gradle)
     - VERIFY your Dockerfile builds successfully before finishing
 
     ## Important Rules

@@ -15,7 +15,6 @@ import subprocess
 import argparse
 import json
 import re
-import signal
 import threading
 from pathlib import Path
 from dataclasses import asdict, dataclass, field
@@ -26,9 +25,11 @@ from minisweagent.agents.interactive import InteractiveAgent, InteractiveAgentCo
 from minisweagent.models.litellm_model import LitellmModel
 from minisweagent.run.utils.save import save_traj
 
+
 @dataclass
 class ExtendedLocalEnvironmentConfig:
     """Extended LocalEnvironmentConfig with increased timeout for long-running operations."""
+
     cwd: str = ""
     env: dict[str, str] = field(default_factory=dict)
     timeout: int = 1200  # 20 minutes instead of 5 minutes
@@ -36,8 +37,10 @@ class ExtendedLocalEnvironmentConfig:
 
 class ExtendedLocalEnvironment:
     """Extended LocalEnvironment with longer timeout for complex repository operations."""
-    
-    def __init__(self, *, config_class: type = ExtendedLocalEnvironmentConfig, **kwargs):
+
+    def __init__(
+        self, *, config_class: type = ExtendedLocalEnvironmentConfig, **kwargs
+    ):
         """This class executes bash commands directly on the local machine with extended timeouts."""
         self.config = config_class(**kwargs)
 
@@ -69,31 +72,31 @@ def extract_test_command_from_dockerfile(dockerfile_path: Path) -> Optional[Dict
     """
     if not dockerfile_path.exists():
         return None
-    
+
     dockerfile_content = dockerfile_path.read_text()
-    
+
     # Look for RUN commands that likely run tests
     test_patterns = [
-        r'RUN\s+(npm\s+test)',
-        r'RUN\s+(yarn\s+test)',
-        r'RUN\s+(pytest)',
-        r'RUN\s+(python\s+-m\s+pytest)',
-        r'RUN\s+(cargo\s+test)', 
-        r'RUN\s+(go\s+test)',
-        r'RUN\s+(mvn\s+test)',
-        r'RUN\s+(gradle\s+test)',
-        r'RUN\s+(.+test.+)',  # Generic fallback
+        r"RUN\s+(npm\s+test)",
+        r"RUN\s+(yarn\s+test)",
+        r"RUN\s+(pytest)",
+        r"RUN\s+(python\s+-m\s+pytest)",
+        r"RUN\s+(cargo\s+test)",
+        r"RUN\s+(go\s+test)",
+        r"RUN\s+(mvn\s+test)",
+        r"RUN\s+(gradle\s+test)",
+        r"RUN\s+(.+test.+)",  # Generic fallback
     ]
-    
+
     for pattern in test_patterns:
         match = re.search(pattern, dockerfile_content, re.IGNORECASE)
         if match:
             test_command = match.group(1)
-            
+
             # Try to determine framework from command - standardized names
             framework = "unknown"
             language = "unknown"
-            
+
             if "npm" in test_command or "yarn" in test_command:
                 # Try to detect specific JS framework
                 framework = "mocha"  # Default, could be jest
@@ -113,13 +116,13 @@ def extract_test_command_from_dockerfile(dockerfile_path: Path) -> Optional[Dict
             elif "gradle" in test_command:
                 framework = "maven"  # Use maven parser for gradle too
                 language = "java"
-            
+
             return {
                 "test_command": test_command,
                 "test_framework": framework,
-                "language": language
+                "language": language,
             }
-    
+
     return None
 
 
@@ -162,19 +165,19 @@ def main():
         "--max-cost",
         type=float,
         default=2.0,
-        help="Maximum cost in dollars for agent execution (default: 2.0)"
+        help="Maximum cost in dollars for agent execution (default: 2.0)",
     )
     parser.add_argument(
         "--max-time",
         type=int,
         default=1200,
-        help="Maximum time in seconds for agent execution (default: 1200 = 20 minutes)"
+        help="Maximum time in seconds for agent execution (default: 1200 = 20 minutes)",
     )
     parser.add_argument(
         "--failure-threshold",
         type=float,
         default=0.09,
-        help="Maximum fraction of tests allowed to fail (default: 0.09 = 9%%)"
+        help="Maximum fraction of tests allowed to fail (default: 0.09 = 9%%)",
     )
     args = parser.parse_args()
 
@@ -182,11 +185,11 @@ def main():
     MODEL_NAME = args.model_name
 
     # Parse repository owner and name
-    if '/' not in repo_name:
+    if "/" not in repo_name:
         print(f"❌ Repository name must be in format 'owner/repo', got: {repo_name}")
         sys.exit(1)
 
-    owner, repo = repo_name.split('/', 1)
+    owner, repo = repo_name.split("/", 1)
     print(f"📦 Repository owner: {owner}")
     print(f"📦 Repository name: {repo}")
 
@@ -198,19 +201,29 @@ def main():
     # Set up generation mode
     # Note: --verify-testing implies --verify
     verify_mode = args.verify or args.verify_testing
-    
+
     if is_python_repo:
-        print(f"🐍 Generating conda installation script for {repo_name} using model '{MODEL_NAME}'...")
+        print(
+            f"🐍 Generating conda installation script for {repo_name} using model '{MODEL_NAME}'..."
+        )
         config_filename = "conda_installation_generation.yaml"
         output_type = "conda installation script"
     else:
         if verify_mode:
-            verification_msg = "and verifying" if not args.verify_testing else "verifying and parsing tests for"
-            print(f"🚀 Generating {verification_msg} Dockerfile for {repo_name} using model '{MODEL_NAME}'...")
+            verification_msg = (
+                "and verifying"
+                if not args.verify_testing
+                else "verifying and parsing tests for"
+            )
+            print(
+                f"🚀 Generating {verification_msg} Dockerfile for {repo_name} using model '{MODEL_NAME}'..."
+            )
             config_filename = "dockerfile_generation_with_verification.yaml"
             output_type = "Dockerfile (with verification)"
         else:
-            print(f"🚀 Generating Dockerfile for {repo_name} using model '{MODEL_NAME}'...")
+            print(
+                f"🚀 Generating Dockerfile for {repo_name} using model '{MODEL_NAME}'..."
+            )
             config_filename = "dockerfile_generation.yaml"
             output_type = "Dockerfile"
 
@@ -241,13 +254,13 @@ def main():
         sys.exit(1)
 
     config_data = yaml.safe_load(config_path.read_text())["agent"]
-    
+
     # Override cost_limit with CLI argument
-    config_data['cost_limit'] = args.max_cost
-    
+    config_data["cost_limit"] = args.max_cost
+
     # Inject script directory into templates for agent to use
     script_dir = str(Path(__file__).parent.resolve())
-    if 'instance_template' in config_data:
+    if "instance_template" in config_data:
         # Add script directory information to the beginning of the prompt
         helper_scripts_section = f"""
 ## Helper Scripts Available
@@ -259,7 +272,7 @@ The following helper scripts are available in this directory:
 Use the full paths shown above when calling these scripts.
 
 """
-        
+
         # Add verify-testing specific instructions if flag is set
         if args.verify_testing:
             threshold_percent = int(args.failure_threshold * 100)
@@ -288,6 +301,10 @@ After parsing succeeds, verify completeness by checking `agent-result/$repo_fold
 **If `verify_testing.py` fails:**
 
 Check `agent-result/$repo_folder_name/test_output.txt` to see if tests actually ran:
+- **Tests showed "UP-TO-DATE" or "SKIPPED" (cached results)**: Update `test_commands` in `repo_metadata.json` to force fresh execution
+  - For Gradle: Add `--rerun-tasks` flag (e.g., change `./gradlew test` to `./gradlew test --rerun-tasks ...`)
+  - For other build tools: Use appropriate cache-bypassing flags
+  - Then re-run verification with the updated test_commands
 - **Tests ran successfully but parsing failed**: Create/update a parser (see options below)
 - **No tests exist**: Mark as no-tests repo (see below)
 
@@ -327,14 +344,18 @@ Only mark as no-tests if ALL true:
 
 Then: Set `test_commands: []` and `test_framework: "none"`, skip `verify_testing.py`
 
+**IMPORTANT:** Do not use workarounds like `|| (echo ...)` to create fake result files when parsing fails. Your task requires successful parsing. Iterate to fix the root cause (test command or parser).
+
 """
-        
-        config_data['instance_template'] = helper_scripts_section + config_data['instance_template']
-        
+
+        config_data["instance_template"] = (
+            helper_scripts_section + config_data["instance_template"]
+        )
+
         # Also replace any hardcoded references
-        config_data['instance_template'] = config_data['instance_template'].replace(
-            'python verify_dockerfile.py',
-            f'python {script_dir}/verify_dockerfile.py --failure-threshold {args.failure_threshold}'
+        config_data["instance_template"] = config_data["instance_template"].replace(
+            "python verify_dockerfile.py",
+            f"python {script_dir}/verify_dockerfile.py --failure-threshold {args.failure_threshold}",
         )
 
     # Create agent based on livestream preference
@@ -347,15 +368,11 @@ Then: Set `test_commands: []` and `test_framework: "none"`, skip `verify_testing
             config_class=InteractiveAgentConfig,
             mode="yolo",  # Execute without confirmation prompts
             confirm_exit=False,  # Don't ask for confirmation when finishing
-            **config_data
+            **config_data,
         )
     else:
-        agent = DefaultAgent(
-            model,
-            environment,
-            **config_data
-        )
-    
+        agent = DefaultAgent(model, environment, **config_data)
+
     try:
         # Run the agent - it will handle everything including output creation
         print(f"🤖 Starting agent to analyze {repo_name}...")
@@ -365,48 +382,102 @@ Then: Set `test_commands: []` and `test_framework: "none"`, skip `verify_testing
         # Set up timeout using threading
         timeout_occurred = False
         result_container = {}
-        
+
         def run_agent_with_timeout():
             try:
-                result_container['exit_status'], result_container['result'] = agent.run(task=repo_name)
-            except Exception as e:
-                result_container['error'] = e
-        
+                result_container["exit_status"], result_container["result"] = agent.run(
+                    task=repo_name
+                )
+            except BaseException as e:
+                # Catch all exceptions including SystemExit (raised on cost/step limit)
+                result_container["error"] = e
+
         agent_thread = threading.Thread(target=run_agent_with_timeout)
         agent_thread.daemon = True
         agent_thread.start()
         agent_thread.join(timeout=args.max_time)
-        
+
         if agent_thread.is_alive():
-            # Timeout occurred
-            timeout_occurred = True
-            print(f"⏰ Agent execution exceeded time limit of {args.max_time} seconds!")
-            exit_status = "TIMEOUT"
-            result = f"Agent execution timed out after {args.max_time} seconds"
-        elif 'error' in result_container:
-            raise result_container['error']
+            # Thread is still running after max_time - could be timeout or hanging
+            # Wait a bit more to see if it's just finishing up
+            print("⏰ Agent execution time limit reached, waiting for cleanup...")
+            agent_thread.join(timeout=60)  # Give 60 more seconds for graceful cleanup
+
+            if agent_thread.is_alive():
+                # Still alive after grace period - treat as timeout
+                timeout_occurred = True
+                print(
+                    f"⏰ Agent execution exceeded time limit of {args.max_time} seconds!"
+                )
+                exit_status = "TIMEOUT"
+                result = f"Agent execution timed out after {args.max_time} seconds"
+            else:
+                # Thread finished during grace period
+                print("✅ Agent completed during cleanup period")
+                if "error" in result_container:
+                    error = result_container["error"]
+                    if isinstance(error, SystemExit):
+                        # Completed but hit limit at the end
+                        if (
+                            "exit_status" in result_container
+                            and "result" in result_container
+                        ):
+                            exit_status = result_container["exit_status"]
+                            result = result_container["result"]
+                        else:
+                            exit_status = "LIMIT_EXCEEDED"
+                            result = f"Agent hit cost/step limit: {error}"
+                    else:
+                        raise error
+                else:
+                    exit_status = result_container.get("exit_status", "ERROR")
+                    result = result_container.get("result", "Unknown error")
+        elif "error" in result_container:
+            error = result_container["error"]
+            # Check if it's a SystemExit from cost/step limit
+            if isinstance(error, SystemExit):
+                # Cost/step limit was exceeded
+                # Check if agent completed work before hitting limit
+                if "exit_status" in result_container and "result" in result_container:
+                    # Agent finished successfully before limit exception was raised
+                    print("💰 Agent hit cost/step limit but completed the task")
+                    exit_status = result_container["exit_status"]
+                    result = result_container["result"]
+                else:
+                    # Limit hit mid-execution
+                    print(
+                        "💰 Agent stopped due to limits (cost or step limit exceeded)"
+                    )
+                    exit_status = "LIMIT_EXCEEDED"
+                    result = f"Agent execution stopped: {error}"
+            else:
+                raise error
         else:
-            exit_status = result_container.get('exit_status', 'ERROR')
-            result = result_container.get('result', 'Unknown error')
+            exit_status = result_container.get("exit_status", "ERROR")
+            result = result_container.get("result", "Unknown error")
 
         # Save trajectory
         trajectory_path = repo_result_dir / "trajectory.json"
         print(f"💾 Saving agent trajectory to: {trajectory_path}")
-        
+
         if timeout_occurred:
             # Save partial trajectory with timeout status
-            print(f"⚠️  Saving partial trajectory due to timeout")
-        
-        save_traj(agent, trajectory_path, exit_status=exit_status, result=result)
-        
+            print("⚠️  Saving partial trajectory due to timeout")
+
+        try:
+            save_traj(agent, trajectory_path, exit_status=exit_status, result=result)
+        except Exception as e:
+            print(f"⚠️  Warning: Could not save trajectory: {e}")
+            # Continue anyway - trajectory save failure shouldn't block the pipeline
+
         # Report final costs
-        if hasattr(agent.model, 'cost'):
+        if hasattr(agent.model, "cost"):
             print(f"💵 Total cost: ${agent.model.cost:.4f}")
-        if hasattr(agent.model, 'n_calls'):
+        if hasattr(agent.model, "n_calls"):
             print(f"📞 Total API calls: {agent.model.n_calls}")
-        
+
         if timeout_occurred:
-            print(f"❌ Agent timed out - Dockerfile generation incomplete")
+            print("❌ Agent timed out - Dockerfile generation incomplete")
             sys.exit(124)  # Exit code 124 indicates timeout (standard Unix convention)
 
         if is_python_repo:
@@ -415,15 +486,23 @@ Then: Set `test_commands: []` and `test_framework: "none"`, skip `verify_testing
             metadata_path = repo_result_dir / "repo_metadata.json"
 
             if len(sh_files) == 0:
-                print("❌ No conda installation script (.sh file) was created. Check the agent output above.")
+                print(
+                    "❌ No conda installation script (.sh file) was created. Check the agent output above."
+                )
                 print(f"Exit status: {exit_status}, Result: {result}")
             elif len(sh_files) > 1:
-                print(f"❌ Multiple .sh files found in {repo_result_dir}: {[f.name for f in sh_files]}")
-                print("Expected exactly one installation script. Check the agent output above.")
+                print(
+                    f"❌ Multiple .sh files found in {repo_result_dir}: {[f.name for f in sh_files]}"
+                )
+                print(
+                    "Expected exactly one installation script. Check the agent output above."
+                )
                 print(f"Exit status: {exit_status}, Result: {result}")
             else:
                 install_script_path = sh_files[0]
-                print(f"✅ Conda installation script successfully created at {install_script_path}")
+                print(
+                    f"✅ Conda installation script successfully created at {install_script_path}"
+                )
                 print("\n🐍 Generated Conda Installation Script:")
                 print("-" * 50)
                 print(install_script_path.read_text())
@@ -439,22 +518,32 @@ Then: Set `test_commands: []` and `test_framework: "none"`, skip `verify_testing
                 else:
                     print("⚠️  Warning: repo_metadata.json was not created by agent")
 
-                print(f"🎉 Conda installation script generation completed successfully!")
-                print(f"📋 Script ready for SWE-smith try_install_py workflow:")
+                print(
+                    "🎉 Conda installation script generation completed successfully!"
+                )
+                print("📋 Script ready for SWE-smith try_install_py workflow:")
 
                 # Try to extract commit hash from metadata for usage instructions
                 if metadata_path.exists():
                     try:
-                        with open(metadata_path, 'r') as f:
+                        with open(metadata_path, "r") as f:
                             metadata = json.load(f)
-                            commit_hash = metadata.get('commit_hash', '<COMMIT_HASH>')
-                        print(f"   python -m swesmith.build_repo.try_install_py {repo_name} {install_script_path.absolute()} --commit {commit_hash}")
+                            commit_hash = metadata.get("commit_hash", "<COMMIT_HASH>")
+                        print(
+                            f"   python -m swesmith.build_repo.try_install_py {repo_name} {install_script_path.absolute()} --commit {commit_hash}"
+                        )
                     except:
-                        print(f"   python -m swesmith.build_repo.try_install_py {repo_name} {install_script_path.absolute()} --commit <COMMIT_HASH>")
-                        print(f"   (Check repo_metadata.json for the actual commit hash)")
+                        print(
+                            f"   python -m swesmith.build_repo.try_install_py {repo_name} {install_script_path.absolute()} --commit <COMMIT_HASH>"
+                        )
+                        print(
+                            "   (Check repo_metadata.json for the actual commit hash)"
+                        )
                 else:
-                    print(f"   python -m swesmith.build_repo.try_install_py {repo_name} {install_script_path.absolute()} --commit <COMMIT_HASH>")
-                    print(f"   (Commit hash should be provided - check agent output)")
+                    print(
+                        f"   python -m swesmith.build_repo.try_install_py {repo_name} {install_script_path.absolute()} --commit <COMMIT_HASH>"
+                    )
+                    print("   (Commit hash should be provided - check agent output)")
         else:
             # Check if Dockerfile was created
             dockerfile_path = repo_result_dir / "Dockerfile"
@@ -477,20 +566,26 @@ Then: Set `test_commands: []` and `test_framework: "none"`, skip `verify_testing
                 else:
                     print("⚠️  Warning: repo_metadata.json was not created by agent")
                     # Try to extract from Dockerfile as fallback
-                    extracted_commands = extract_test_command_from_dockerfile(dockerfile_path)
+                    extracted_commands = extract_test_command_from_dockerfile(
+                        dockerfile_path
+                    )
                     if extracted_commands:
                         print("📋 Attempting to extract metadata from Dockerfile...")
                         # Convert to new format
                         metadata = {
                             "install_commands": ["unknown"],
-                            "test_commands": [extracted_commands.get("test_command", "unknown")],
+                            "test_commands": [
+                                extracted_commands.get("test_command", "unknown")
+                            ],
                             "language": extracted_commands.get("language", "unknown"),
-                            "test_framework": extracted_commands.get("test_framework", "unknown"),
-                            "commit_hash": "unknown"
+                            "test_framework": extracted_commands.get(
+                                "test_framework", "unknown"
+                            ),
+                            "commit_hash": "unknown",
                         }
-                        with open(metadata_path, 'w') as f:
+                        with open(metadata_path, "w") as f:
                             json.dump(metadata, f, indent=2)
-                        print(f"✅ Created repo_metadata.json from Dockerfile analysis")
+                        print("✅ Created repo_metadata.json from Dockerfile analysis")
                         print("\n📊 Extracted Repository Metadata:")
                         print("-" * 50)
                         print(json.dumps(metadata, indent=2))
@@ -499,34 +594,46 @@ Then: Set `test_commands: []` and `test_framework: "none"`, skip `verify_testing
                         print("❌ Could not extract metadata from Dockerfile")
 
                 print("🎉 Dockerfile generation completed successfully!")
-                
+
                 if verify_mode:
-                    print("\n💡 Note: The agent was instructed to verify the Dockerfile.")
-                    print("   Check the trajectory above to see if verification passed.")
-                    
+                    print(
+                        "\n💡 Note: The agent was instructed to verify the Dockerfile."
+                    )
+                    print(
+                        "   Check the trajectory above to see if verification passed."
+                    )
+
                     if args.verify_testing:
-                        print("\n🧪 Note: The agent was also instructed to run verify_testing.py.")
+                        print(
+                            "\n🧪 Note: The agent was also instructed to run verify_testing.py."
+                        )
                         parsed_status_path = repo_result_dir / "parsed_test_status.json"
                         if parsed_status_path.exists():
-                            print(f"   ✅ Test parsing succeeded! Results saved to: {parsed_status_path}")
+                            print(
+                                f"   ✅ Test parsing succeeded! Results saved to: {parsed_status_path}"
+                            )
                             try:
-                                with open(parsed_status_path, 'r') as f:
+                                with open(parsed_status_path, "r") as f:
                                     parsed_data = json.load(f)
-                                    parser_used = parsed_data.get('parser', 'unknown')
-                                    test_count = len(parsed_data.get('parsed_test_status', {}))
+                                    parser_used = parsed_data.get("parser", "unknown")
+                                    test_count = len(
+                                        parsed_data.get("parsed_test_status", {})
+                                    )
                                     print(f"   📊 Parser used: {parser_used}")
                                     print(f"   📊 Tests parsed: {test_count}")
                             except:
                                 pass
                         else:
-                            print(f"   ⚠️  Test parsing may have failed - check trajectory for details")
+                            print(
+                                "   ⚠️  Test parsing may have failed - check trajectory for details"
+                            )
             else:
                 print("❌ No Dockerfile was created. Check the agent output above.")
                 print(f"Exit status: {exit_status}, Result: {result}")
-            
+
     except Exception as e:
         print(f"❌ Error running agent: {e}")
-        
+
         # Still try to save trajectory if possible
         try:
             trajectory_path = repo_result_dir / "trajectory_error.json"
