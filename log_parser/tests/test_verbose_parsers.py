@@ -192,57 +192,59 @@ Tests in error:
 Tests run: 6, Failures: 1, Errors: 1, Skipped: 0
 """
 
+
 def test_parser(name, parser_func, log_content):
     """Test a parser and print results."""
-    print(f"\n{'='*60}")
+    print(f"\n{'=' * 60}")
     print(f"Testing {name} parser with verbose output")
-    print(f"{'='*60}")
-    
+    print(f"{'=' * 60}")
+
     result = parser_func(log_content)
-    
+
     if result:
         print(f"✓ Successfully parsed {len(result)} test cases")
-        
+
         # Count statuses
         passed = sum(1 for status in result.values() if status == "PASSED")
         failed = sum(1 for status in result.values() if status == "FAILED")
         skipped = sum(1 for status in result.values() if status == "SKIPPED")
-        
+
         print(f"  - PASSED: {passed}")
         print(f"  - FAILED: {failed}")
         print(f"  - SKIPPED: {skipped}")
-        
+
         # Show sample results
         print("\nSample results:")
         for i, (test_name, status) in enumerate(list(result.items())[:5]):
             print(f"  {test_name}: {status}")
-        
+
         if len(result) > 5:
             print(f"  ... and {len(result) - 5} more")
     else:
         print("✗ Failed to parse any test cases")
-    
+
     return result
+
 
 if __name__ == "__main__":
     print("Testing verbose mode support in log parsers")
     print("=" * 60)
-    
+
     # Run all tests
     results = {}
-    
-    results['pytest'] = test_parser('pytest', parse_log_pytest, pytest_verbose_log)
-    results['jest'] = test_parser('jest', parse_log_jest, jest_verbose_log)
-    results['mocha'] = test_parser('mocha', parse_log_mocha, mocha_verbose_log)
-    results['go_test'] = test_parser('go_test', parse_log_go_test, go_verbose_log)
-    results['cargo'] = test_parser('cargo', parse_log_cargo, cargo_verbose_log)
-    results['maven'] = test_parser('maven', parse_log_maven, maven_verbose_log)
-    
+
+    results["pytest"] = test_parser("pytest", parse_log_pytest, pytest_verbose_log)
+    results["jest"] = test_parser("jest", parse_log_jest, jest_verbose_log)
+    results["mocha"] = test_parser("mocha", parse_log_mocha, mocha_verbose_log)
+    results["go_test"] = test_parser("go_test", parse_log_go_test, go_verbose_log)
+    results["cargo"] = test_parser("cargo", parse_log_cargo, cargo_verbose_log)
+    results["maven"] = test_parser("maven", parse_log_maven, maven_verbose_log)
+
     # Summary
-    print(f"\n{'='*60}")
+    print(f"\n{'=' * 60}")
     print("SUMMARY")
-    print(f"{'='*60}")
-    
+    print(f"{'=' * 60}")
+
     for parser_name, result in results.items():
         if result:
             print(f"✓ {parser_name}: Successfully parsed {len(result)} test cases")

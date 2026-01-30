@@ -5,10 +5,12 @@ Pytest test log parser.
 import re
 from enum import Enum
 
+
 class TestStatus(Enum):
     PASSED = "PASSED"
-    FAILED = "FAILED" 
+    FAILED = "FAILED"
     SKIPPED = "SKIPPED"
+
 
 def parse_log_pytest(log: str) -> dict[str, str]:
     """
@@ -26,22 +28,24 @@ def parse_log_pytest(log: str) -> dict[str, str]:
     # "test_file.py::test_function PASSED"
     # "test_file.py::TestClass::test_method FAILED"
     # "test_file.py::test_skip SKIPPED"
-    
-    verbose_pattern = r"^(.+?)::([\w_]+(?:::[\w_]+)?)\s+(PASSED|FAILED|SKIPPED|ERROR)(?:\s+\[.*?\])?$"
-    
+
+    verbose_pattern = (
+        r"^(.+?)::([\w_]+(?:::[\w_]+)?)\s+(PASSED|FAILED|SKIPPED|ERROR)(?:\s+\[.*?\])?$"
+    )
+
     for line in log.split("\n"):
         line = line.strip()
         match = re.match(verbose_pattern, line)
         if match:
             file_part, test_part, status = match.groups()
-            
+
             # Create a readable test name
             if "::" in test_part:
                 # Format: TestClass::test_method -> TestClass.test_method
                 test_name = test_part.replace("::", ".")
             else:
                 test_name = test_part
-                
+
             if status in ["PASSED"]:
                 test_status_map[test_name] = TestStatus.PASSED.value
             elif status in ["FAILED", "ERROR"]:

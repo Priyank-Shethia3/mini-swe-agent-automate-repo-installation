@@ -1,10 +1,12 @@
 import re
 from enum import Enum
 
+
 class TestStatus(Enum):
     PASSED = "PASSED"
     FAILED = "FAILED"
     SKIPPED = "SKIPPED"
+
 
 def parse_log_cspell(log: str) -> dict[str, str]:
     """
@@ -13,7 +15,7 @@ def parse_log_cspell(log: str) -> dict[str, str]:
     CSpell: Files checked: 14, Issues found: 0 in 0 files
     """
     results = {}
-    
+
     # Check for formatting tests (Prettier)
     if "All matched files use Prettier code style!" in log:
         results["prettier_format"] = TestStatus.PASSED.value
@@ -33,5 +35,5 @@ def parse_log_cspell(log: str) -> dict[str, str]:
         issues = int(cspell_match.group(2))
         status = TestStatus.PASSED.value if issues == 0 else TestStatus.FAILED.value
         results["cspell_spelling"] = status
-    
+
     return results

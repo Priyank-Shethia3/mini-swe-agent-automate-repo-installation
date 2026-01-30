@@ -5,10 +5,12 @@ Cargo test log parser for Rust.
 import re
 from enum import Enum
 
+
 class TestStatus(Enum):
     PASSED = "PASSED"
-    FAILED = "FAILED" 
+    FAILED = "FAILED"
     SKIPPED = "SKIPPED"
+
 
 def parse_log_cargo(log: str) -> dict[str, str]:
     """
@@ -26,15 +28,15 @@ def parse_log_cargo(log: str) -> dict[str, str]:
     # "test test_function ... ok"
     # "test test_function ... FAILED"
     # "test test_function ... ignored"
-    
+
     test_pattern = r"^test\s+(\S+)\s+\.\.\.\s+(ok|FAILED|ignored)$"
-    
+
     for line in log.split("\n"):
         line = line.strip()
         match = re.match(test_pattern, line)
         if match:
             test_name, status = match.groups()
-            
+
             if status == "ok":
                 test_status_map[test_name] = TestStatus.PASSED.value
             elif status == "FAILED":
@@ -46,14 +48,14 @@ def parse_log_cargo(log: str) -> dict[str, str]:
     # "   Doc-tests project_name"
     # "test src/lib.rs - function_name (line X) ... ok"
     doctest_pattern = r"^test\s+\S+\s+-\s+(\w+)\s+.*\.\.\.\s+(ok|FAILED)$"
-    
+
     for line in log.split("\n"):
         line = line.strip()
         match = re.match(doctest_pattern, line)
         if match:
             test_name, status = match.groups()
             test_name = f"doctest_{test_name}"
-            
+
             if status == "ok":
                 test_status_map[test_name] = TestStatus.PASSED.value
             elif status == "FAILED":

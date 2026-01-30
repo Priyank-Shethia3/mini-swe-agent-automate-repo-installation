@@ -13,10 +13,10 @@ from .parsers.cargo import parse_log_cargo
 from .parsers.maven import parse_log_maven
 
 __all__ = [
-    'parse_log_jest',
-    'parse_log_mocha', 
-    'parse_log_pytest',
-    'parse_log_go_test',
-    'parse_log_cargo',
-    'parse_log_maven'
+    "parse_log_jest",
+    "parse_log_mocha",
+    "parse_log_pytest",
+    "parse_log_go_test",
+    "parse_log_cargo",
+    "parse_log_maven",
 ]

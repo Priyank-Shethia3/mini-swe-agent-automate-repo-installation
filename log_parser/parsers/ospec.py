@@ -1,10 +1,12 @@
 import re
 from enum import Enum
 
+
 class TestStatus(Enum):
     PASSED = "PASSED"
     FAILED = "FAILED"
     SKIPPED = "SKIPPED"
+
 
 def parse_log_ospec(log: str) -> dict[str, str]:
     """
@@ -12,7 +14,7 @@ def parse_log_ospec(log: str) -> dict[str, str]:
     Example: "All 1132053 assertions passed" or "100 assertions failed"
     """
     results = {}
-    
+
     # Check for "All X assertions passed"
     pass_match = re.search(r"All (\d+) assertions passed", log)
     if pass_match:
@@ -26,5 +28,5 @@ def parse_log_ospec(log: str) -> dict[str, str]:
     fail_match = re.search(r"(\d+) assertions failed", log)
     if fail_match:
         results["assertions_failed"] = TestStatus.FAILED.value
-        
+
     return results

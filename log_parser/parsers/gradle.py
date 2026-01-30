@@ -7,10 +7,12 @@ import re
 import xml.etree.ElementTree as ET
 from enum import Enum
 
+
 class TestStatus(Enum):
     PASSED = "PASSED"
-    FAILED = "FAILED" 
+    FAILED = "FAILED"
     SKIPPED = "SKIPPED"
+
 
 def parse_log_gradle(log: str) -> dict[str, str]:
     """
@@ -19,7 +21,7 @@ def parse_log_gradle(log: str) -> dict[str, str]:
     Supports multiple formats:
     1. JUnit XML format (from build/test-results/test/*.xml)
     2. Standard Gradle console output
-    
+
     Args:
         log (str): log content (may contain XML or console output)
     Returns:
@@ -29,32 +31,35 @@ def parse_log_gradle(log: str) -> dict[str, str]:
 
     # First, try to parse JUnit XML format (most reliable)
     # Extract all XML content from the log
-    xml_matches = re.findall(r'<\?xml version.*?</testsuite>', log, re.DOTALL)
-    
+    xml_matches = re.findall(r"<\?xml version.*?</testsuite>", log, re.DOTALL)
+
     if xml_matches:
         for xml_content in xml_matches:
             try:
                 root = ET.fromstring(xml_content)
                 # Get the test suite class name
-                suite_classname = root.get('name', '')
-                
+                suite_classname = root.get("name", "")
+
                 # Parse each testcase
-                for testcase in root.findall('.//testcase'):
-                    classname = testcase.get('classname', suite_classname)
-                    methodname = testcase.get('name', '')
+                for testcase in root.findall(".//testcase"):
+                    classname = testcase.get("classname", suite_classname)
+                    methodname = testcase.get("name", "")
                     test_name = f"{classname}.{methodname}"
-                    
+
                     # Check for failure, error, or skipped
-                    if testcase.find('failure') is not None or testcase.find('error') is not None:
+                    if (
+                        testcase.find("failure") is not None
+                        or testcase.find("error") is not None
+                    ):
                         test_status_map[test_name] = TestStatus.FAILED.value
-                    elif testcase.find('skipped') is not None:
+                    elif testcase.find("skipped") is not None:
                         test_status_map[test_name] = TestStatus.SKIPPED.value
                     else:
                         test_status_map[test_name] = TestStatus.PASSED.value
             except ET.ParseError:
                 # If XML parsing fails, continue to other methods
                 pass
-    
+
     # If we got results from XML, return them
     if test_status_map:
         return test_status_map
@@ -62,66 +67,67 @@ def parse_log_gradle(log: str) -> dict[str, str]:
     # Fallback: Pattern 1 - Standard Gradle console output
     # "org.kse.crypto.x509.X509CertUtilTest > testConvertCertificate PASSED"
     standard_pattern = r"^(.+?)\s+>\s+(\w+(?:\[[\d\w]+\])?)\s+(PASSED|FAILED|SKIPPED)$"
-    
+
     # Also track tests that appear in the log (for summary generation)
     all_test_names = set()
-    
+
     for line in log.split("\n"):
         line = line.strip()
-        
+
         # Strip ANSI color codes
-        cleaned_line = re.sub(r'\x1b\[[0-9;]*m', '', line)
-        
+        cleaned_line = re.sub(r"\x1b\[[0-9;]*m", "", line)
+
         match = re.match(standard_pattern, cleaned_line)
         if match:
             class_name, method_name, status = match.groups()
             test_name = f"{class_name}.{method_name}"
             all_test_names.add(test_name)
-            
+
             if status == "PASSED":
                 test_status_map[test_name] = TestStatus.PASSED.value
             elif status == "FAILED":
                 test_status_map[test_name] = TestStatus.FAILED.value
             elif status == "SKIPPED":
                 test_status_map[test_name] = TestStatus.SKIPPED.value
-    
+
     # If we found results, return them
     if test_status_map:
         return test_status_map
-    
+
     # Pattern 2: Mocha-style summary (used by some Gradle configurations)
     # "2217 passing (1m 30s)"
     # "75 pending"
-    summary_pattern_passing = r'^\s*(\d+)\s+passing'
-    summary_pattern_pending = r'^\s*(\d+)\s+pending'
-    summary_pattern_failing = r'^\s*(\d+)\s+failing'
-    
+    summary_pattern_passing = r"^\s*(\d+)\s+passing"
+    summary_pattern_pending = r"^\s*(\d+)\s+pending"
+    summary_pattern_failing = r"^\s*(\d+)\s+failing"
+
     passing_count = 0
     pending_count = 0
     failing_count = 0
-    
+
     for line in log.split("\n"):
-        cleaned_line = re.sub(r'\x1b\[[0-9;]*m', '', line.strip())
-        
+        cleaned_line = re.sub(r"\x1b\[[0-9;]*m", "", line.strip())
+
         match_pass = re.match(summary_pattern_passing, cleaned_line)
         match_pend = re.match(summary_pattern_pending, cleaned_line)
         match_fail = re.match(summary_pattern_failing, cleaned_line)
-        
+
         if match_pass:
             passing_count = int(match_pass.group(1))
         if match_pend:
             pending_count = int(match_pend.group(1))
         if match_fail:
             failing_count = int(match_fail.group(1))
-    
+
     # If we found summary counts, generate synthetic test entries
     if passing_count > 0 or pending_count > 0 or failing_count > 0:
         for i in range(passing_count):
-            test_status_map[f"test_{i+1}"] = TestStatus.PASSED.value
+            test_status_map[f"test_{i + 1}"] = TestStatus.PASSED.value
         for i in range(pending_count):
-            test_status_map[f"test_{passing_count+i+1}"] = TestStatus.SKIPPED.value
+            test_status_map[f"test_{passing_count + i + 1}"] = TestStatus.SKIPPED.value
         for i in range(failing_count):
-            test_status_map[f"test_{passing_count+pending_count+i+1}"] = TestStatus.FAILED.value
+            test_status_map[f"test_{passing_count + pending_count + i + 1}"] = (
+                TestStatus.FAILED.value
+            )
 
     return test_status_map
-

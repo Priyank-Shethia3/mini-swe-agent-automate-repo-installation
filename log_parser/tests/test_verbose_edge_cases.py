@@ -170,23 +170,24 @@ testCacheInvalidation(com.example.IntegrationTest)  Time elapsed: 0.156 sec  <<<
 Tests run: 3, Failures: 1, Errors: 0, Skipped: 0, Time elapsed: 0.933 sec <<< FAILURE!
 """
 
+
 def test_edge_cases():
     """Test edge cases and additional verbose formats."""
-    
+
     print("Testing edge cases and additional verbose formats")
     print("=" * 60)
-    
+
     # Test pytest with extra verbose
     print("\n1. Testing pytest with -vv output")
     result = parse_log_pytest(pytest_vv_log)
     if result:
         print(f"   ✓ Parsed {len(result)} tests")
         # Check for parametrized tests
-        if any('[' in name for name in result.keys()):
+        if any("[" in name for name in result.keys()):
             print("   ✓ Correctly handled parametrized tests")
     else:
         print("   ✗ Failed to parse")
-    
+
     # Test jest with custom output
     print("\n2. Testing jest with custom reporter output")
     result = parse_log_jest(jest_custom_log)
@@ -195,10 +196,10 @@ def test_edge_cases():
         # Check for nested describe blocks
         nested_count = sum(1 for name in result.keys() if len(name) > 20)
         if nested_count > 0:
-            print(f"   ✓ Handled nested describe blocks")
+            print("   ✓ Handled nested describe blocks")
     else:
         print("   ✗ Failed to parse")
-    
+
     # Test mocha with TAP output
     print("\n3. Testing mocha with TAP format")
     result = parse_log_mocha(mocha_tap_log)
@@ -206,41 +207,42 @@ def test_edge_cases():
         print(f"   ✓ Parsed {len(result)} tests from TAP format")
     else:
         print("   ✗ Failed to parse TAP format")
-    
+
     # Test go with benchmarks
     print("\n4. Testing go test with benchmarks")
     result = parse_log_go_test(go_benchmark_log)
     if result:
         print(f"   ✓ Parsed {len(result)} tests")
         # Check for subtests
-        if any('.' in name for name in result.keys()):
+        if any("." in name for name in result.keys()):
             print("   ✓ Correctly handled subtests")
     else:
         print("   ✗ Failed to parse")
-    
+
     # Test cargo with doc tests
     print("\n5. Testing cargo with --nocapture and doc tests")
     result = parse_log_cargo(cargo_nocapture_log)
     if result:
         print(f"   ✓ Parsed {len(result)} tests")
         # Check for doc tests
-        doc_test_count = sum(1 for name in result.keys() if 'doctest' in name)
+        doc_test_count = sum(1 for name in result.keys() if "doctest" in name)
         if doc_test_count > 0:
             print(f"   ✓ Parsed {doc_test_count} doc tests")
     else:
         print("   ✗ Failed to parse")
-    
+
     # Test maven with TestNG
-    print("\n6. Testing maven with TestNG and parameterized tests")  
+    print("\n6. Testing maven with TestNG and parameterized tests")
     result = parse_log_maven(maven_testng_log)
     if result:
         print(f"   ✓ Parsed {len(result)} tests")
         # Check for parameterized tests
-        param_count = sum(1 for name in result.keys() if '[' in name or ']' in name)
+        param_count = sum(1 for name in result.keys() if "[" in name or "]" in name)
         if param_count > 0:
             print(f"   ✓ Handled {param_count} parameterized tests")
     else:
         print("   ✗ Failed to parse")
+
 
 if __name__ == "__main__":
     test_edge_cases()

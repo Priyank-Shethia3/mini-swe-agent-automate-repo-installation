@@ -1,14 +1,16 @@
 from enum import Enum
 import re
 
+
 class TestStatus(Enum):
     PASSED = "PASSED"
     FAILED = "FAILED"
     SKIPPED = "SKIPPED"
 
+
 def parse_log_plotly_custom(log: str) -> dict[str, str]:
     results = {}
-    
+
     # Parse test-syntax results
     syntax_ok_patterns = [
         "ok no jasmine suites focus/exclude blocks or wrong tag patterns",
@@ -16,7 +18,7 @@ def parse_log_plotly_custom(log: str) -> dict[str, str]:
         "ok correct headers and contents in lib/ and src/",
         "ok lower case only file names",
         "ok trailing new line character",
-        "ok find_locale_strings - no output requested."
+        "ok find_locale_strings - no output requested.",
     ]
     for pattern in syntax_ok_patterns:
         if pattern in log:
