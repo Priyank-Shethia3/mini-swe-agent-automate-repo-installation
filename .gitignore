@@ -2,7 +2,7 @@ __pycache__/
 */__pycache__/workspace/express/
 .claude
 CLAUDE.md
-agent-result/
+agent-result*/
 agent-result_arch/
 agent-result-archive/
 agent-result-java-arch/
@@ -10,6 +10,7 @@ github_repo_scraper/*.json
 github_repo_scraper/*/
 patch_verify_testing.py
 retroactive_profile_generation.py
+github_repo_scraper/*.csv
 fix_*.py
 .env
 *.out
