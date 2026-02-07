@@ -4,6 +4,10 @@ from log_parser.parsers.testng_ant import parse_log_testng_ant
 from log_parser.parsers.vitest import parse_log_vitest
 from log_parser.parsers.modernizr_custom import parse_log_modernizr_custom
 from log_parser.parsers.plotly_custom import parse_log_plotly_custom
+from log_parser.parsers.gtest import parse_log_gtest
+from log_parser.parsers.catch2 import parse_log_catch2
+from log_parser.parsers.boost_test import parse_log_boost_test
+from log_parser.parsers.cppunit import parse_log_cppunit
 
 #!/usr/bin/env python3
 """
@@ -68,6 +72,11 @@ PARSERS = {
     "twist": parse_log_twist,
     "ospec": parse_log_ospec,
     "vitest": parse_log_vitest,
+    "gtest": parse_log_gtest,
+    "catch": parse_log_catch2,
+    "catch2": parse_log_catch2,
+    "boost_test": parse_log_boost_test,
+    "cppunit": parse_log_cppunit,
 }
 
 # Language to framework mappings
@@ -91,6 +100,7 @@ LANGUAGE_FRAMEWORKS = {
     "go": ["go_test"],
     "rust": ["cargo"],
     "java": ["gradle", "maven", "junit"],
+    "cpp": ["ctest", "ctest_gtest", "gtest", "catch", "catch2", "boost_test", "cppunit"],
 }
 
 

@@ -303,9 +303,17 @@ After parsing succeeds, verify completeness by checking `agent-result/$repo_fold
 Check `agent-result/$repo_folder_name/test_output.txt` to see if tests actually ran:
 - **Tests showed "UP-TO-DATE" or "SKIPPED" (cached results)**: Update `test_commands` in `repo_metadata.json` to force fresh execution
   - For Gradle: Add `--rerun-tasks` flag (e.g., change `./gradlew test` to `./gradlew test --rerun-tasks ...`)
+  - For C++ projects with CMake/CTest: Add `--rerun-failed --repeat until-pass:1` flags (e.g., `cd build && ctest --verbose --rerun-failed`)
   - For other build tools: Use appropriate cache-bypassing flags
   - Then re-run verification with the updated test_commands
 - **Tests ran successfully but parsing failed**: Create/update a parser (see options below)
+
+**For C++ projects:**
+- Build systems: CMake (most common), Bazel, Make, Autotools
+- Test frameworks: CTest (CMake), Google Test, Catch2, Boost.Test, CppUnit
+- Ensure test commands produce verbose output (e.g., `ctest --verbose`)
+- For gtest: Use `--gtest_color=no` to disable color codes that break parsing
+- For catch2: XML output is preferred: `./test_binary --reporter xml`
 - **No tests exist**: Mark as no-tests repo (see below)
 
 **Creating/Updating Parsers (if tests ran but couldn't be parsed):**

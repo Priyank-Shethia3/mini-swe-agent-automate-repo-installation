@@ -54,11 +54,17 @@ agent:
           - `--no-daemon`: Avoid daemon overhead
           - `--console=plain`: Plain output for parsing
           - `|| true; find ...`: Always succeed and extract XML results for parsing
+        - **For C++ projects with CMake/CTest**: Use `cd build && ctest --verbose --output-on-failure --rerun-failed --repeat until-pass:1` for detailed output
+          - `--verbose`: Show full test output (required for parsing)
+          - `--output-on-failure`: Show output only when tests fail
+          - `--rerun-failed --repeat until-pass:1`: Ensure tests actually run (bypass cache)
+        - **For C++ projects with standalone test binaries**: Run the test executable directly (e.g., `./build/test/my_test --gtest_color=no` for gtest)
+        - **For Bazel C++ projects**: Use `bazel test //... --test_output=all --nocache_test_results` to see full output
         - **Test result output**: Test commands must produce parseable output. For frameworks that output XML (JUnit, TestNG), append result extraction.
         - **Critical**: Verify test commands actually execute tests (not use cached results) and generate output files. If tests show "UP-TO-DATE" or "SKIPPED", they won't be parseable.
         - Note: For Maven multi-module projects, ensure install_commands and test_commands use the same `-pl <module>` scope if specified
-       - language: The programming language (e.g., "javascript", "python", "go", "rust", "java")
-       - test_framework: The detected test framework (e.g., "jest", "mocha", "pytest", "go_test", "cargo", "maven", "gradle", "junit")
+       - language: The programming language (e.g., "javascript", "python", "go", "rust", "java", "cpp")
+       - test_framework: The detected test framework (e.g., "jest", "mocha", "pytest", "go_test", "cargo", "maven", "gradle", "junit", "ctest", "gtest", "catch", "catch2", "boost_test", "cppunit")
           - If unable to determine the test framework, set it to "unknown"
        - commit_hash: Latest commit hash from the repository
     9. **VERIFY THE DOCKERFILE**: Run `python verify_dockerfile.py agent-result/$repo_folder_name/Dockerfile` to test if the Dockerfile builds successfully and tests run properly
@@ -75,6 +81,19 @@ agent:
         - Repeat until verification passes for a maximum of 3 attempts. DON'T EXCEED 3 ATTEMPTS.
     11. Once verification passes, remove the cloned repository directory to save space (e.g., `rm -rf agent-result/$repo_folder_name/cloned_repo`)
     12. Finish your work by issuing: `echo COMPLETE_TASK_AND_SUBMIT_FINAL_OUTPUT`
+
+    ## C++ Repository Guidelines
+    
+    When working with C++ repositories:
+    - **Base images**: Use `gcc:11` or `ubuntu:22.04` (install build-essential, cmake, git)
+    - **CMake projects**: Standard workflow is `mkdir build && cd build && cmake .. && make`
+    - **Test detection**: 
+      - If CMakeLists.txt has `enable_testing()` or `add_test()` → use CTest
+      - If you see `#include <gtest/gtest.h>` → use gtest
+      - If you see `#include <catch2/catch.hpp>` → use catch2
+      - If you see `#include <boost/test/unit_test.hpp>` → use boost_test
+    - **Test commands**: For CMake projects, after build use `cd build && ctest --verbose` or run test binaries directly
+    - **System dependencies**: Most C++ projects need `build-essential cmake git` and sometimes `libboost-all-dev`, `pkg-config`
 
     ## Important Guidelines
 
